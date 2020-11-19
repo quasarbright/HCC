@@ -24,6 +24,7 @@ dependencies:
 
 library:
   source-dirs: src
+  ghc-options: -w -Wall
 
 executables:
   HCC-exe:

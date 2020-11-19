@@ -1,6 +1,15 @@
 module Main where
 
-import Lib
+import Parse
+import Compile
+import System.Environment
+
 
 main :: IO ()
-main = someFunc
+main = do
+    (fname:_) <- getArgs
+    source <- readFile fname
+    let prog = parseProgram source
+    let asm = compileStr prog
+    putStrLn asm
+    

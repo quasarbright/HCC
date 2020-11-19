@@ -1,0 +1,7 @@
+#! /bin/bash
+
+make $1.s
+make $1.o
+make $1.run
+$1.run
+rm -r $1.s $1.o $1.run  $1.run.dSYM

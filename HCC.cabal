@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: d713495981a60b75b86cf67c9afb05cf02a7dfbb0acdc98e3b02c553d6e6ba47
+-- hash: 542ff196270c51ec953c9494b59b0483d49384a7814cb66cbbd54eff0831ec65
 
 name:           HCC
 version:        0.1.0.0
@@ -27,11 +27,16 @@ source-repository head
 
 library
   exposed-modules:
+      Asm
+      AST
+      Compile
       Lib
+      Parse
   other-modules:
       Paths_HCC
   hs-source-dirs:
       src
+  ghc-options: -w -Wall
   build-depends:
       base >=4.7 && <5
   default-language: Haskell2010
