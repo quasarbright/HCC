@@ -21,6 +21,10 @@ description:         Please see the README on GitHub at <https://github.com/Gith
 
 dependencies:
 - base >= 4.7 && < 5
+- megaparsec
+- mtl
+- transformers
+- containers
 
 library:
   source-dirs: src
