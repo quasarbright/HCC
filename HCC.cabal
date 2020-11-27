@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: e07ba6c02a285bf3ab495062ee018455b179fb83b2ee8d29272eddd5e472de4a
+-- hash: 554f9df853afd5851d8f82c5fde63d3bdef851c0bf3114877498b66d5d2d737e
 
 name:           HCC
 version:        0.1.0.0
@@ -33,6 +33,7 @@ library
       Lib
       Parse
       ParseUtils
+      Text.Megaparsec.Expr
   other-modules:
       Paths_HCC
   hs-source-dirs:

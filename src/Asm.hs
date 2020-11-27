@@ -9,16 +9,23 @@ import Data.List (intercalate)
 wordSize :: Integral a => a
 wordSize = 8 -- 64 bits
 
-data Reg = RAX | RBP | RSP deriving(Eq, Ord, Show)
+data Reg = RAX | RBP | RSP | RCX | RDX deriving(Eq, Ord, Show)
 
 data Arg = Const Integer
          | Reg Reg
-         | RegOffset Reg Integer
+         | RegOffset Reg Integer -- offset is in words
          deriving(Eq, Ord)
 
 data Instr = IMov Arg Arg
            | IAdd Arg Arg
            | ISub Arg Arg
+           | IMul Arg Arg
+           | IAnd Arg Arg
+           | IOr Arg Arg
+           | INot Arg
+           | INeg Arg
+           | IPush Arg
+           | IPop Arg
            | IRet
            deriving(Eq, Ord)
 
@@ -33,10 +40,23 @@ instance Show Arg where
             | otherwise -> "["++show r++"]"
 
 
+showBinInstr :: (Show a1, Show a2) => [Char] -> a1 -> a2 -> [Char]
+showBinInstr name l r = "    "++name++" "++show l++", "++show r
+
+showUnInstr :: Show a => [Char] -> a -> [Char]
+showUnInstr name arg = "    "++name++" "++show arg
+
 instance Show Instr where
     show = \case
-        IMov dest source -> "    mov "++show dest++", "++show source
-        IAdd dest rhs -> "    add "++show dest++", "++show rhs
-        ISub dest rhs -> "    sub "++show dest++", "++show rhs
+        IMov dest source -> showBinInstr "mov" dest source
+        IAdd dest rhs -> showBinInstr "add" dest rhs
+        ISub dest rhs -> showBinInstr "sub" dest rhs
+        IMul dest rhs -> showBinInstr "imul" dest rhs
+        IAnd dest rhs -> showBinInstr "and" dest rhs
+        IOr dest rhs -> showBinInstr "or" dest rhs
+        INot arg -> showUnInstr "not" arg
+        INeg arg -> showUnInstr "neg" arg
+        IPush arg -> showUnInstr "push" arg
+        IPop arg -> showUnInstr "pop" arg
         IRet -> "    ret"
     showList = showString . intercalate "\n" . fmap show
