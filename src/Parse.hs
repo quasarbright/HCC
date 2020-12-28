@@ -7,37 +7,37 @@ import Text.Megaparsec.Expr
 import ParseUtils
 import AST
 
-type ExprParser = (Parser() -> Parser (Expr SS)) -> Parser () -> Parser (Expr SS)
+type ExprParser = (Parser() -> Parser Expr) -> Parser () -> Parser Expr
 
-pNumber :: Parser (Expr SS)
-pNumber = wrapSSWith (uncurry EInt) (lexeme L.decimal)
+pNumber :: Parser Expr
+pNumber = EInt <$> lexeme L.decimal
 
-pVar :: Parser (Expr SS)
-pVar = wrapSSM $ EVar <$> identifier
+pVar :: Parser Expr
+pVar = EVar <$> identifier
 
 
-binary :: String -> Binop -> Operator Parser (Expr SS)
+binary :: String -> Binop -> Operator Parser Expr
 binary name op = InfixL $ do
     symbol name
-    return $ \l r -> let ss = combineSS (getTag l) (getTag r) in EBinop op l r ss
+    return $ \l r -> EBinop op l r
 
-prefix :: String -> Unop -> Operator Parser (Expr SS)
+prefix :: String -> Unop -> Operator Parser Expr
 prefix  name op = Prefix $ do
-    (_,ss) <- wrapSS $ symbol name
-    return $ \e -> let ss' = combineSS ss (getTag e) in EUnop op e ss'
+    symbol name
+    return $ \e -> EUnop op e
 
-postfix :: String -> Unop -> Operator Parser (Expr SS)
+postfix :: String -> Unop -> Operator Parser Expr
 postfix  name op = Prefix $ do
-    (_,ss) <- wrapSS $ symbol name
-    return $ \e -> let ss' = combineSS (getTag e) ss in EUnop op e ss'
+    symbol name
+    return $ \e -> EUnop op e
 
-pAtomic :: Parser (Expr SS)
+pAtomic :: Parser Expr
 pAtomic = choice [pVar, pNumber, between (symbol "(") (symbol ")") pExpr]
 
-pExpr :: Parser (Expr SS)
+pExpr :: Parser Expr
 pExpr = makeExprParser pAtomic table
 
-table :: [[Operator Parser (Expr SS)]]
+table :: [[Operator Parser Expr]]
 table = [ [ prefix  "-" Neg
           , prefix "~" Inv
           , prefix "!" Not
@@ -50,21 +50,21 @@ table = [ [ prefix  "-" Neg
         , [binary "|" BitOr]
         ]
 
-pAssign :: Parser (Statement SS)
-pAssign = wrapSSM $ Assign <$> (identifier <* pReservedOp "=") <*> (pExpr <* pReservedOp ";")
+pAssign :: Parser Statement
+pAssign = Assign <$> (identifier <* pReservedOp "=") <*> (pExpr <* pReservedOp ";")
 
-pReturn :: Parser (Statement SS)
-pReturn = wrapSSM $ Return <$> (pKeyword "return" *> pExpr <* pReservedOp ";")
+pReturn :: Parser Statement
+pReturn = Return <$> (pKeyword "return" *> pExpr <* pReservedOp ";")
 
-pStatement :: Parser (Statement SS)
+pStatement :: Parser Statement
 pStatement = choice [pReturn, pAssign]
 
-pProgram :: Parser (Program SS)
-pProgram = wrapSSM $ Program <$> some pStatement
+pProgram :: Parser Program
+pProgram = Program <$> some pStatement
 
 -- | name then contents
-parseProgram :: String -> String -> Either (ParseErrorBundle String Void) (Program SS)
+parseProgram :: String -> String -> Either (ParseErrorBundle String Void) Program
 parseProgram = runParser pProgram
 
-parseExpr :: String -> String -> Either (ParseErrorBundle String Void) (Expr SS)
+parseExpr :: String -> String -> Either (ParseErrorBundle String Void) Expr
 parseExpr = runParser pExpr

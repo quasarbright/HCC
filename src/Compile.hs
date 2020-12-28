@@ -45,24 +45,24 @@ allocVar x = do
             return addr
         Just arg -> return arg
 
-compile :: Program a -> Compiler [Instr]
-compile (Program stmts _) = do
+compile :: Program -> Compiler [Instr]
+compile (Program stmts) = do
     let numSlots = numVars stmts
     let setup = [ISub (Reg RSP) (Const (fromIntegral (wordSize * numSlots)))]
     bodyInstrs <- concat <$> mapM compileStatement stmts
     let cleanup = [IAdd (Reg RSP) (Const (fromIntegral (wordSize * numSlots))), IRet]
     return $ concat [setup, bodyInstrs, cleanup]
 
-compileStatement :: Statement a -> Compiler [Instr]
+compileStatement :: Statement -> Compiler [Instr]
 compileStatement = \case
-    Assign x rhs _ -> do
+    Assign x rhs -> do
         addr <- allocVar x
         rhsInstrs <- compileExpr rhs
         let bindInstrs = [IMov addr (Reg RAX)]
         return (rhsInstrs++bindInstrs)
-    Return e _ -> compileExpr e -- TODO when you have functions, jump to the cleanup label here!
+    Return e -> compileExpr e -- TODO when you have functions, jump to the cleanup label here!
 
-simpleBinop :: (Arg -> Arg -> Instr) -> Expr a1 -> Expr a2 -> Compiler [Instr]
+simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]
 simpleBinop instr left right = do
         leftInstrs <- compileExpr left
         rightInstrs <- compileExpr right
@@ -73,39 +73,39 @@ simpleBinop instr left right = do
                , [IPop (Reg RCX), instr (Reg RCX) (Reg RAX), IMov (Reg RAX) (Reg RCX)]
                ]
 
-compileExpr :: Expr a -> Compiler [Instr]
+compileExpr :: Expr -> Compiler [Instr]
 compileExpr = \case
-    EVar x _ -> do
+    EVar x -> do
         addr <- lookupVar x
         return [IMov (Reg RAX) addr]
-    EUnop AddrOf (EVar x _) _ -> do
+    EUnop AddrOf (EVar x) -> do
         addr <- lookupVar x
         case addr of
             RegOffset reg off -> do
                 return [IMov (Reg RAX) (Reg reg), IAdd (Reg RAX) (Const (off * wordSize))]
             _ -> throwError "address must be regoffset"
-    EUnop AddrOf _ _ -> throwError "invalid addr of"
-    EUnop Deref e _ -> do
+    EUnop AddrOf _ -> throwError "invalid addr of"
+    EUnop Deref e -> do
         ptrInstrs <- compileExpr e
         return $ ptrInstrs ++ [IMov (Reg RAX) (RegOffset RAX 0)]
-    EUnop Inv e _ -> do
+    EUnop Inv e -> do
         eInstrs <- compileExpr e
         return $ eInstrs ++ [INot (Reg RAX)]
-    EUnop Not _ _ -> undefined -- TODO labels and jumps
-    EUnop Neg e _ -> do
+    EUnop Not _ -> undefined -- TODO labels and jumps
+    EUnop Neg e -> do
         eInstrs <- compileExpr e
         return $ eInstrs ++ [INeg (Reg RAX)]
-    EBinop Plus left right _ -> simpleBinop IAdd left right
-    EBinop Times left right _ -> simpleBinop IMul left right
-    EBinop BitAnd left right _ -> simpleBinop IAnd left right
-    EBinop BitOr left right _ -> simpleBinop IOr left right
-    EBinop Eq _ _ _ -> undefined -- TODO labels and jumps
-    EInt n _ -> return [IMov (Reg RAX) (Const n)]
+    EBinop Plus left right -> simpleBinop IAdd left right
+    EBinop Times left right -> simpleBinop IMul left right
+    EBinop BitAnd left right -> simpleBinop IAnd left right
+    EBinop BitOr left right -> simpleBinop IOr left right
+    EBinop Eq _ _ -> undefined -- TODO labels and jumps
+    EInt n -> return [IMov (Reg RAX) (Const n)]
 
 executeCompiler :: Compiler a -> Either String a
 executeCompiler m = evalState (runExceptT (runCompiler m)) emptyEnv
 
-compileStr :: Program a -> Either String String
+compileStr :: Program -> Either String String
 compileStr p =
     let mInstrs = executeCompiler $ compile p in
     let pStrM = show <$> mInstrs in
