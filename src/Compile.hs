@@ -53,13 +53,27 @@ compile (Program stmts) = do
     let cleanup = [IAdd (Reg RSP) (Const (fromIntegral (wordSize * numSlots))), IRet]
     return $ concat [setup, bodyInstrs, cleanup]
 
+-- | puts the location of the LHS inside rax
+compileLHS :: LHS -> Compiler [Instr]
+compileLHS (LVar x) = do
+    addr <- allocVar x
+    return [ILea (Reg RAX) addr]
+compileLHS (LDeref lhs) = do
+    instrs <- compileLHS lhs
+    return (instrs++[IMov (Reg RAX) (RegOffset RAX 0)])
+
+-- | put the rhs in rax after assigning
+compileAssignment :: LHS -> Expr -> Compiler [Instr]
+compileAssignment lhs rhs = do
+    lhsInstrs <- compileLHS lhs
+    let saveLHS = [IPush (Reg RAX)]
+    rhsInstrs <- compileExpr rhs
+    let bindInstrs = [ IPop (Reg RCX), IMov (RegOffset RCX 0) (Reg RAX)]
+    return (concat [lhsInstrs,saveLHS,rhsInstrs,bindInstrs])
+
 compileStatement :: Statement -> Compiler [Instr]
 compileStatement = \case
-    Assign x rhs -> do
-        addr <- allocVar x
-        rhsInstrs <- compileExpr rhs
-        let bindInstrs = [IMov addr (Reg RAX)]
-        return (rhsInstrs++bindInstrs)
+    Assign lhs rhs -> compileAssignment lhs rhs
     Return e -> compileExpr e -- TODO when you have functions, jump to the cleanup label here!
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]
@@ -81,8 +95,8 @@ compileExpr = \case
     EUnop AddrOf (EVar x) -> do
         addr <- lookupVar x
         case addr of
-            RegOffset reg off -> do
-                return [IMov (Reg RAX) (Reg reg), IAdd (Reg RAX) (Const (off * wordSize))]
+            RegOffset{} -> do
+                return [ILea (Reg RAX) addr]
             _ -> throwError "address must be regoffset"
     EUnop AddrOf _ -> throwError "invalid addr of"
     EUnop Deref e -> do

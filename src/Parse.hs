@@ -50,8 +50,14 @@ table = [ [ prefix  "-" Neg
         , [binary "|" BitOr]
         ]
 
+pLHS :: Parser LHS
+pLHS = do
+    stars <- many (symbol "*")
+    name <- identifier
+    return $ foldr (const LDeref) (LVar name) stars
+
 pAssign :: Parser Statement
-pAssign = Assign <$> (identifier <* pReservedOp "=") <*> (pExpr <* pReservedOp ";")
+pAssign = Assign <$> (pLHS <* pReservedOp "=") <*> (pExpr <* pReservedOp ";")
 
 pReturn :: Parser Statement
 pReturn = Return <$> (pKeyword "return" *> pExpr <* pReservedOp ";")

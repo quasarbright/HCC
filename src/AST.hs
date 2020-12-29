@@ -27,7 +27,7 @@ instance Show Binop where
 
 data Expr = EInt Integer
             | EVar String
-            | EUnop Unop Expr 
+            | EUnop Unop Expr
             | EBinop Binop Expr Expr
             deriving(Eq, Ord)
 
@@ -38,13 +38,21 @@ instance Show Expr where
         EUnop op e -> show op++"("++show e++")"
         EBinop op left right -> "("++show left++" "++show op++" "++show right++")"
 
-data Statement = Assign String Expr
+data LHS = LVar String
+         | LDeref LHS
+         deriving(Eq, Ord)
+
+instance Show LHS where
+    show (LVar x) = x
+    show (LDeref lhs) = "*"++show lhs
+
+data Statement = Assign LHS Expr
                  | Return Expr
                  deriving(Eq, Ord)
 
 instance Show Statement where
     show = \case
-        Assign x rhs -> x++" = "++show rhs++";"
+        Assign x rhs -> show x++" = "++show rhs++";"
         Return e -> "return "++show e++";"
     showList = showString . intercalate "\n" . fmap show
 
