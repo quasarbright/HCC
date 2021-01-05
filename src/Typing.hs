@@ -82,7 +82,7 @@ inferExpr =
             tR <- inferExpr r
             if TVoid `elem` [tL, tR]
             then throwError (BadVoid (EBinop Eq l r))
-            else assertEqual tL tR >> return tL
+            else assertEqual tL tR >> return TInt
 
 inferLHS :: LHS -> Checker Type
 inferLHS =
