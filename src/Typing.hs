@@ -98,7 +98,11 @@ inferBlock = foldr go (return TVoid)
     where
         go stmt mRest =
             case stmt of
-                Assign lhs rhs -> assertEqual <$> inferLHS lhs <*> inferExpr rhs >> mRest
+                Assign lhs rhs -> do
+                    tL <- inferLHS lhs
+                    tR <- inferExpr rhs
+                    assertEqual tL tR
+                    mRest
                 Decl t x -> annot x t mRest
                 Def t x rhs -> checkExpr t rhs >> annot x t mRest
                 Return e -> inferExpr e <* mRest -- rest should be empty                

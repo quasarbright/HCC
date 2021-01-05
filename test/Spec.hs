@@ -48,3 +48,15 @@ main = hspec $ do
             inferStringProg "int x; return &x == &x;" `shouldBe` Right TInt
         it "doesn't let you do equality on different types" $ do
             inferStringProg "int x; return &x == x;" `shouldBe` Left (Mismatch (TRef TInt) TInt)
+        it "handles assignments" $ do
+            inferStringProg "int x; int y; x = y;" `shouldBe` Right TVoid
+            inferStringProg "int *x; int *y; x = y;" `shouldBe` Right TVoid
+            inferStringProg "int *x; int y; x = y;" `shouldBe` Left (Mismatch (TRef TInt) TInt)
+            inferStringProg "int *x; int y; y = x;" `shouldBe` Left (Mismatch TInt (TRef TInt))
+        it "handles dereference assignment" $ do
+            inferStringProg "int x; int *y = &x; *y = 2;" `shouldBe` Right TVoid
+            inferStringProg "int x; int *y = &x; int **z = &y; *z = &x; **z = 2;" `shouldBe` Right TVoid
+            inferStringProg "int x; *x = 2;" `shouldBe` Left (BadDeref TInt)
+            inferStringProg "int x; int *y = &x; **y = 2;" `shouldBe` Left (BadDeref TInt)
+            inferStringProg "int x; int *y = &x; *y = y;" `shouldBe` Left (Mismatch TInt (TRef TInt))
+            inferStringProg "int x; int *y = &x; int **z = &y; *z = x;" `shouldBe` Left (Mismatch (TRef TInt) TInt)
