@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 554f9df853afd5851d8f82c5fde63d3bdef851c0bf3114877498b66d5d2d737e
+-- hash: bb820d41000de8332dc9c8763709869f74d0a8a0a79bb73950d4703679655d0f
 
 name:           HCC
 version:        0.1.0.0
@@ -34,6 +34,8 @@ library
       Parse
       ParseUtils
       Text.Megaparsec.Expr
+      Type
+      Typing
   other-modules:
       Paths_HCC
   hs-source-dirs:
@@ -70,11 +72,12 @@ test-suite HCC-test
       Paths_HCC
   hs-source-dirs:
       test
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -w -Wall
   build-depends:
       HCC
     , base >=4.7 && <5
     , containers
+    , hspec
     , megaparsec
     , mtl
     , transformers

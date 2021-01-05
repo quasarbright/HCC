@@ -49,5 +49,7 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    - -w -Wall
     dependencies:
     - HCC
+    - hspec

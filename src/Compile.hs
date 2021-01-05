@@ -20,12 +20,12 @@ emptyEnv :: Env
 emptyEnv = (Map.empty, 1)
 
 newtype Compiler a = Compiler { runCompiler :: ExceptT String (State Env) a }
-    deriving( Functor
-            , Applicative
-            , Monad
-            , MonadState Env
-            , MonadError String
-            )
+                 deriving( Functor
+                         , Applicative
+                         , Monad
+                         , MonadState Env
+                         , MonadError String
+                         )
 
 lookupVar :: String -> Compiler Arg
 lookupVar x = do
@@ -75,6 +75,8 @@ compileStatement :: Statement -> Compiler [Instr]
 compileStatement = \case
     Assign lhs rhs -> compileAssignment lhs rhs
     Return e -> compileExpr e -- TODO when you have functions, jump to the cleanup label here!
+    Decl _ x -> compileAssignment (LVar x) (EInt 0)
+    Def _ x rhs -> compileAssignment (LVar x) rhs
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]
 simpleBinop instr left right = do

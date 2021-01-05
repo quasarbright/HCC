@@ -2,8 +2,8 @@
 
 module AST where
 
-import Data.List (intercalate, nub)
-
+import Data.List (intercalate)
+import Type
 
 data Unop = Deref | AddrOf | Neg | Not | Inv deriving(Eq, Ord)
 
@@ -47,13 +47,17 @@ instance Show LHS where
     show (LDeref lhs) = "*"++show lhs
 
 data Statement = Assign LHS Expr
-                 | Return Expr
-                 deriving(Eq, Ord)
+               | Return Expr
+               | Decl Type String
+               | Def Type String Expr
+               deriving(Eq, Ord)
 
 instance Show Statement where
     show = \case
         Assign x rhs -> show x++" = "++show rhs++";"
         Return e -> "return "++show e++";"
+        Decl t x -> show t++" "++x++";"
+        Def t x rhs -> show t++" "++x++" = "++show rhs++";"
     showList = showString . intercalate "\n" . fmap show
 
 newtype Program = Program [Statement] deriving (Eq, Ord)
@@ -64,4 +68,8 @@ instance Show Program where
 
 -- | how many stack slots need to be allocated for the given list of statements?
 numVars :: [Statement] -> Int
-numVars stmts = length $ nub [x | Assign x _ <- stmts]
+numVars stmts = length (filter isDecl stmts)
+    where isDecl Decl{} = True
+          isDecl Def{} = True
+          isDecl Assign{} = False
+          isDecl Return{} = False
