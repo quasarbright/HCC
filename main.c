@@ -9,4 +9,5 @@ int main() {
     int64_t ans = our_code_starts_here();
     printf("%" PRId64 "\n", ans);
     exit(0);
+    return 0;
 }

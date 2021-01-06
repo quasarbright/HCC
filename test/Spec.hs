@@ -60,3 +60,6 @@ main = hspec $ do
             inferStringProg "int x; int *y = &x; **y = 2;" `shouldBe` Left (BadDeref TInt)
             inferStringProg "int x; int *y = &x; *y = y;" `shouldBe` Left (Mismatch TInt (TRef TInt))
             inferStringProg "int x; int *y = &x; int **z = &y; *z = x;" `shouldBe` Left (Mismatch (TRef TInt) TInt)
+        it "handles arithmetic with dereferences" $ do
+            inferStringProg "int x; int *y; int **z; return 1 + (*y + x + **z) + *&x;" `shouldBe` Right TInt
+            

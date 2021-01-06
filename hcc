@@ -1,7 +1,8 @@
 #! /bin/bash
 
-make -s $1.s
+set -e
+make -s $1.s || { rm $1.s; exit 1; }
 make -s $1.o
 make -s $1.run
-$1.run
+$1.run || { :; }
 rm -r $1.s $1.o $1.run  $1.run.dSYM
