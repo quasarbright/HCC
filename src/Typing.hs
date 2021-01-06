@@ -107,9 +107,8 @@ inferBlock = foldr go (return TVoid)
         go stmt mRest =
             case stmt of
                 Assign lhs rhs -> do
-                    tL <- inferLHS lhs
-                    tR <- inferExpr rhs
-                    assertEqual tL tR
+                    t <- inferLHS lhs
+                    checkExpr t rhs
                     mRest
                 Decl t x -> annot x t mRest
                 Def t x rhs -> checkExpr t rhs >> annot x t mRest
