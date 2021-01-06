@@ -20,7 +20,15 @@ data TypeError = Mismatch Type Type
                | BadDeref Type
                | InternalError String
                | BadVoid Expr
-               deriving(Eq, Ord, Show)
+               deriving(Eq, Ord)
+
+instance Show TypeError where
+    show = \case
+        Mismatch e a -> "Type Mismatch: Expected "++show e++", but got "++show a
+        UnboundVar x -> "Unbound variable: "++ x
+        BadDeref t -> "Cannot dereference value of type "++show t
+        InternalError s -> "Internal type checking error: "++s
+        BadVoid e -> "Value cannot be void: "++show e
 
 newtype Checker a = Checker { runChecker :: ExceptT TypeError (Reader Env) a }
                  deriving( Functor
