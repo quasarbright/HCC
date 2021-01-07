@@ -8,17 +8,28 @@ import AST
 import Type
 import Data.Functor (($>))
 
-pTInt :: Parser Type
-pTInt = symbol "int" $> TInt
+pTAtomic :: Parser Type
+pTAtomic = choice 
+               [ symbol "int" $> TInt
+               , symbol "void" $> TVoid
+               ]
 
-pTRef :: Parser Type
-pTRef = do
-    t <- pTInt
-    stars <- many (symbol "*")
-    return (foldr (const TRef) t stars)
+pTRef_ :: Parser (Type -> Type)
+pTRef_ = symbol "*" $> TRef
+
+pTArray_ :: Parser (Type -> Type)
+pTArray_ = do
+    mn <- between (symbol "[") (symbol "]") (optional (lexeme L.decimal))
+    return $ \t -> TArray t mn
+
+pTOp :: Parser Type
+pTOp = do
+    t <- pTAtomic -- TODO void
+    ops <- reverse <$> many (choice [pTRef_, pTArray_]) -- reverse for foldr
+    return $ foldr ($) t ops
 
 pType :: Parser Type
-pType = pTRef <?> "type"
+pType = pTOp
 
 type ExprParser = (Parser() -> Parser Expr) -> Parser () -> Parser Expr
 
@@ -44,8 +55,19 @@ postfix  name op = Prefix $ do
     symbol name
     return $ \e -> EUnop op e
 
+pArrayLiteral :: Parser Expr
+pArrayLiteral = EArrayLiteral <$> between (symbol "{") (symbol "}") (pExpr `sepBy` symbol ",")
+
 pAtomic :: Parser Expr
-pAtomic = choice [pVar, pNumber, between (symbol "(") (symbol ")") pExpr]
+pAtomic = choice [pVar, pNumber, between (symbol "(") (symbol ")") pExpr, pArrayLiteral]
+
+pGetIndex :: Parser Expr
+pGetIndex = do
+    e <- pAtomic
+    mIdx <- optional (between (symbol "[") (symbol "]") pExpr)
+    case mIdx of
+        Just idx -> return $ EGetIndex e idx
+        Nothing -> return e
 
 pUnop_ :: Parser (Expr -> Expr)
 pUnop_ = EUnop <$> choice
@@ -59,7 +81,7 @@ pUnop_ = EUnop <$> choice
 pUnop :: Parser Expr
 pUnop = do
     ops <- many pUnop_
-    e <- pAtomic
+    e <- pGetIndex
     return (foldr ($) e ops)
 
 --pDeref = do
@@ -74,13 +96,12 @@ table = [ [binary "*" Times]
         , [binary "+" Plus]
         , [binary "==" Eq]
         , [binary "|" BitOr]
-        ]
+        ]    
 
 pLHS :: Parser LHS
 pLHS = do
-    stars <- many (symbol "*")
-    name <- identifier
-    return $ foldr (const LDeref) (LVar name) stars
+    e <- pExpr
+    maybe (fail "invalid lhs") return (lhsOfExpr e)
 
 pAssign :: Parser Statement
 pAssign = Assign <$> (pLHS <* pReservedOp "=") <*> (pExpr <* pReservedOp ";")

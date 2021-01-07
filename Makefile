@@ -21,4 +21,4 @@ endif
 	stack exec HCC-exe -- $< > $@
 
 clean:
-	rm -r *.s *.o *.run *.run.dSYM
+	rm -r tests/*.s tests/*.o tests/*.run tests/*.run.dSYM

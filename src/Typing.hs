@@ -12,6 +12,7 @@ import qualified Data.Map as Map
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Arrow ((>>>))
+import Data.Functor (($>))
 
 type Env = Map String Type
 
@@ -20,7 +21,8 @@ data TypeError = Mismatch Type Type
                | BadDeref Type
                | InternalError String
                | BadVoid Expr
-               deriving(Eq, Ord)
+               | BadArrayAccess Type
+               deriving(Eq)
 
 instance Show TypeError where
     show = \case
@@ -29,6 +31,7 @@ instance Show TypeError where
         BadDeref t -> "Cannot dereference value of type "++show t
         InternalError s -> "Internal type checking error: "++s
         BadVoid e -> "Value cannot be void: "++show e
+        BadArrayAccess t -> "Cannot do array access on a value of type "++show t
 
 newtype Checker a = Checker { runChecker :: ExceptT TypeError (Reader Env) a }
                  deriving( Functor
@@ -61,6 +64,8 @@ assertEqual expected actual
 -- checker --
 
 checkExpr :: Type -> Expr -> Checker ()
+checkExpr TArray{} (EArrayLiteral []) = return ()
+checkExpr (TArray t _) (EArrayLiteral es) = mapM_ (checkExpr t) es
 checkExpr t e = assertEqual t =<< inferExpr e
 
 inferExpr :: Expr -> Checker Type
@@ -76,8 +81,10 @@ inferExpr =
                 TRef t' -> return t'
                 TInt -> throwError (BadDeref t)
                 TVoid -> throwError (BadDeref t)
-        EUnop AddrOf (EVar x) -> TRef <$> lookupVar x
-        EUnop AddrOf _ -> throwError (InternalError "bad addrOf at typecheck")
+                TArray{} -> throwError (BadDeref t) -- TODO treat as t*?
+        EUnop AddrOf e -> maybe err (const (TRef <$> inferExpr e)) (lhsOfExpr e)
+            where err = throwError (InternalError "bad addrOf at typecheck")
+            -- TODO test more relaxed addrOf
         EUnop Neg e -> unop e
         EUnop Not e -> unop e
         EUnop Inv e -> unop e
@@ -91,12 +98,22 @@ inferExpr =
             if TVoid `elem` [tL, tR]
             then throwError (BadVoid (EBinop Eq l r))
             else assertEqual tL tR >> return TInt
+        EGetIndex arr idx -> do
+            tArr <- inferExpr arr
+            let err = throwError (BadArrayAccess tArr)
+            case tArr of
+                TArray t _ -> checkExpr TInt idx $> t
+                TRef{} -> err
+                TInt{} -> err
+                TVoid{} -> err
+        EArrayLiteral [] -> throwError (InternalError "cannot infer type of empty array literal")
+        EArrayLiteral (e:es) -> do
+            t <- inferExpr e
+            checkExpr t (EArrayLiteral es)
+            return (TArray t Nothing)          
 
 inferLHS :: LHS -> Checker Type
-inferLHS =
-    let toExpr (LVar x) = EVar x
-        toExpr (LDeref lhs) = EUnop Deref (toExpr lhs)
-    in inferExpr . toExpr
+inferLHS = inferExpr . exprOfLhs
 
 checkBlock :: Type -> [Statement] -> Checker ()
 checkBlock t b = assertEqual t =<< inferBlock b

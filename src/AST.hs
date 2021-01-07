@@ -29,28 +29,52 @@ data Expr = EInt Integer
             | EVar String
             | EUnop Unop Expr
             | EBinop Binop Expr Expr
+            | EGetIndex Expr Expr
+            | EArrayLiteral [Expr] -- only valid on rhs of array def
             deriving(Eq, Ord)
 
+-- TODO showsPrec
 instance Show Expr where
     show = \case
         EInt n -> show n
         EVar x -> x
-        EUnop op e -> show op++"("++show e++")"
+        EUnop op e -> "("++show op++"("++show e++"))"
         EBinop op left right -> "("++show left++" "++show op++" "++show right++")"
+        EGetIndex arr idx -> show arr ++ "["++show idx++"]"
+        EArrayLiteral es -> "{"++intercalate ", " (show <$> es)++"}"
 
 data LHS = LVar String
          | LDeref LHS
+         | LSetIndex Expr Expr
          deriving(Eq, Ord)
 
 instance Show LHS where
-    show (LVar x) = x
-    show (LDeref lhs) = "*"++show lhs
+    show = show . exprOfLhs
+
+lhsOfExpr :: Expr -> Maybe LHS
+lhsOfExpr = \case
+    EInt{} -> Nothing
+    EVar x -> Just $ LVar x
+    EUnop Deref e -> LDeref <$> lhsOfExpr e
+    EUnop AddrOf _ -> Nothing
+    EUnop Neg _ -> Nothing
+    EUnop Not _ -> Nothing
+    EUnop Inv _ -> Nothing
+    EBinop{} -> Nothing
+    EGetIndex arr idx -> Just $ LSetIndex arr idx
+    EArrayLiteral{} -> Nothing
+
+exprOfLhs :: LHS -> Expr
+exprOfLhs = \case
+    LVar x -> EVar x
+    LDeref lhs -> EUnop Deref (exprOfLhs lhs)
+    LSetIndex arr idx -> EGetIndex arr idx
 
 data Statement = Assign LHS Expr
                | Return Expr
                | Decl Type String
                | Def Type String Expr
-               deriving(Eq, Ord)
+               deriving(Eq)
 
 instance Show Statement where
     show = \case
@@ -60,16 +84,22 @@ instance Show Statement where
         Def t x rhs -> show t++" "++x++" = "++show rhs++";"
     showList = showString . intercalate "\n" . fmap show
 
-newtype Program = Program [Statement] deriving (Eq, Ord)
+newtype Program = Program [Statement] deriving (Eq)
 
 instance Show Program where
     show (Program stmts) = show stmts
     
 
 -- | how many stack slots need to be allocated for the given list of statements?
-numVars :: [Statement] -> Int
-numVars stmts = length (filter isDecl stmts)
-    where isDecl Decl{} = True
-          isDecl Def{} = True
-          isDecl Assign{} = False
-          isDecl Return{} = False
+numSlots :: [Statement] -> Int
+numSlots stmts = sum (go <$> stmts)
+    where
+        go = \case
+            Assign{} -> 0
+            Return{} -> 0
+            Decl (TArray _ (Just n)) _ -> fromIntegral n + 1
+            Def (TArray _ (Just n)) _ EArrayLiteral{} -> fromIntegral n + 1
+            Decl{} -> 1
+            Def{} -> 1
+            
+            

@@ -33,6 +33,8 @@ data Instr = IMov Arg Arg
            | IPush Arg
            | IPop Arg
            | IRet
+           | IAnnot Instr String
+           | IComment String
            deriving(Eq, Ord)
 
 
@@ -53,6 +55,7 @@ showUnInstr name arg = "    "++name++" "++show arg
 
 instance Show Instr where
     show = \case
+        IMov dest@RegOffset{} source@Const{} -> showBinInstr "mov qword" dest source
         IMov dest source -> showBinInstr "mov" dest source
         ILea dest source -> showBinInstr "lea" dest source
         IAdd dest rhs -> showBinInstr "add" dest rhs
@@ -65,4 +68,6 @@ instance Show Instr where
         IPush arg -> showUnInstr "push" arg
         IPop arg -> showUnInstr "pop" arg
         IRet -> "    ret"
+        IAnnot i c -> show i ++ " ; "++c
+        IComment c -> "    ; "++c
     showList = showString . intercalate "\n" . fmap show

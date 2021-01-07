@@ -12,6 +12,7 @@ import qualified Data.Map as Map
 
 import Control.Monad.Except
 import Control.Monad.State.Strict
+import Type
 
 -- | maps names to stack indices, next available stack index
 type Env = (Map String Arg, Integer)
@@ -45,15 +46,47 @@ allocVar x = do
             return addr
         Just arg -> return arg
 
+-- | allocate an array of a given length and return the array pointer and the address of the first value.
+-- Does not zero out words
+allocArr :: String -> Integer -> Compiler (Arg, Arg)
+allocArr x n = do
+    (m, nextIndex) <- get
+    let ptrAddr = RegOffset RBP (-nextIndex)
+    let firstAddr = RegOffset RBP (-(succ nextIndex))
+    put (Map.insert x ptrAddr m, 1 + n + nextIndex)
+    return (ptrAddr, firstAddr)
+
+
 compile :: Program -> Compiler [Instr]
 compile (Program stmts) = do
-    let numSlots = numVars stmts
-    let setup = [ISub (Reg RSP) (Const (fromIntegral (wordSize * numSlots)))]
+    let slots = numSlots stmts + 1
+    let setup = [ IPush (Reg RBP)
+                , IMov (Reg RBP) (Reg RSP)
+                , ISub (Reg RSP) (Const (fromIntegral (wordSize * slots)))
+                ]
     bodyInstrs <- concat <$> mapM compileStatement stmts
-    let cleanup = [IAdd (Reg RSP) (Const (fromIntegral (wordSize * numSlots))), IRet]
+    let cleanup = [ IAdd (Reg RSP) (Const (fromIntegral (wordSize * slots)))
+                  , IMov (Reg RSP) (Reg RBP)
+                  , IPop (Reg RBP)
+                  , IRet
+                  ]
     return $ concat [setup, bodyInstrs, cleanup]
 
--- | puts the location of the LHS inside rax
+-- | puts &arr[idx] in rax
+compileGetIndex :: Expr -> Expr -> Compiler [Instr]
+compileGetIndex arr idx = do
+    arrPtrInstrs <- compileExpr arr
+    idxInstrs <- compileExpr idx
+    return $
+        idxInstrs
+        ++ [IPush (Reg RAX)]
+        ++ arrPtrInstrs
+        ++ [ IPop (Reg RCX)
+           , IMul (Reg RCX) (Const wordSize)
+           , ISub (Reg RAX) (Reg RCX)
+           ]
+
+-- | puts the location of the LHS inside rax (where to store the rhs)
 compileLHS :: LHS -> Compiler [Instr]
 compileLHS (LVar x) = do
     addr <- allocVar x
@@ -61,6 +94,7 @@ compileLHS (LVar x) = do
 compileLHS (LDeref lhs) = do
     instrs <- compileLHS lhs
     return (instrs++[IMov (Reg RAX) (RegOffset RAX 0)])
+compileLHS (LSetIndex arr idx) = compileGetIndex arr idx
 
 -- | put the rhs in rax after assigning
 compileAssignment :: LHS -> Expr -> Compiler [Instr]
@@ -71,11 +105,37 @@ compileAssignment lhs rhs = do
     let bindInstrs = [ IPop (Reg RCX), IMov (RegOffset RCX 0) (Reg RAX)]
     return (concat [lhsInstrs,saveLHS,rhsInstrs,bindInstrs])
 
+imap :: (Integer -> b -> c) -> [b] -> [c]
+imap = flip zipWith [0..]
+
+-- | int[] xs = {1,2,3}; -> int[3] xs; xs[0] = 1; xs[1] = 2; xs[2] = 3;
+-- puts &xs[0] in RAX
+compileArrayLitDef :: Type -> Integer -> String -> [Expr] -> Compiler [Instr]
+compileArrayLitDef t n x es = do
+    let decl = Decl (TArray t (Just n)) x
+        assignments = imap (\i e -> Assign (LSetIndex (EVar x) (EInt i)) e) es
+    normalInstrs <- concat <$> mapM compileStatement (decl:assignments)
+    ptrInstrs <- compileExpr (EVar x) -- return the pointer to arr[0]
+    return $ normalInstrs ++ ptrInstrs
+
 compileStatement :: Statement -> Compiler [Instr]
 compileStatement = \case
     Assign lhs rhs -> compileAssignment lhs rhs
     Return e -> compileExpr e -- TODO when you have functions, jump to the cleanup label here!
+    Decl (TArray _ (Just n)) x -> do
+        (ptrAddr, firstAddr) <- allocArr x n
+        let bindInstrs = [ILea (Reg RCX) firstAddr, IMov ptrAddr (Reg RCX)] -- store the address of the beginning of the array
+        case firstAddr of
+            RegOffset r i0 ->
+                let zeroInstrs = [IMov (RegOffset r (i0-i)) (Const 0) | i <- [0..pred n]]
+                in return (bindInstrs ++ zeroInstrs ++ [ILea (Reg RAX) firstAddr])
+            _ -> throwError "non-regoffset location of array's first word"
     Decl _ x -> compileAssignment (LVar x) (EInt 0)
+    Def t@(TArray _ (Just n)) x (EArrayLiteral es) -> compileArrayLitDef t n' x es
+        where n' = max n (fromIntegral $ length es)
+    Def t@(TArray _ Nothing) x (EArrayLiteral es) -> compileArrayLitDef t n x es
+        where n = fromIntegral $ length es
+    -- note that int[10] xs = ys; will not allocate stack/copy TODO write test and investigate gcc behavior
     Def _ x rhs -> compileAssignment (LVar x) rhs
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]
@@ -94,13 +154,14 @@ compileExpr = \case
     EVar x -> do
         addr <- lookupVar x
         return [IMov (Reg RAX) addr]
-    EUnop AddrOf (EVar x) -> do
-        addr <- lookupVar x
-        case addr of
-            RegOffset{} -> do
-                return [ILea (Reg RAX) addr]
-            _ -> throwError "address must be regoffset"
-    EUnop AddrOf _ -> throwError "invalid addr of"
+    EUnop AddrOf e -> maybe (throwError "invalid addr of") compileLHS (lhsOfExpr e)
+--    EUnop AddrOf (EVar x) -> do
+--        addr <- lookupVar x
+--        case addr of
+--            RegOffset{} -> do
+--                return [ILea (Reg RAX) addr]
+--            _ -> throwError "address must be regoffset"
+--    EUnop AddrOf _ -> throwError "invalid addr of"
     EUnop Deref e -> do
         ptrInstrs <- compileExpr e
         return $ ptrInstrs ++ [IMov (Reg RAX) (RegOffset RAX 0)]
@@ -117,6 +178,11 @@ compileExpr = \case
     EBinop BitOr left right -> simpleBinop IOr left right
     EBinop Eq _ _ -> undefined -- TODO labels and jumps
     EInt n -> return [IMov (Reg RAX) (Const n)]
+    EGetIndex arr idx -> do
+        ptrInstrs <- compileGetIndex arr idx -- &arr[idx]
+        return $ ptrInstrs ++ [IMov (Reg RAX) (RegOffset RAX 0)] -- *&arr[idx]
+    EArrayLiteral{} -> throwError "unexpected array literal"
+
 
 executeCompiler :: Compiler a -> Either String a
 executeCompiler m = evalState (runExceptT (runCompiler m)) emptyEnv

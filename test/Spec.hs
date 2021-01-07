@@ -34,9 +34,14 @@ main = hspec $ do
             inferStringProg "int x; int *y = &x; int **z = &y; return *z;" `shouldBe` Right (TRef TInt)
             inferStringProg "int x; int *y = &x; int **z = &y; return **z;" `shouldBe` Right TInt
             inferStringProg "int x; int *y = &x; int **z = &y; int a; *z = &a; **z = x;" `shouldBe` Right TVoid
+        it "handles relaxed addr of" $ do
+            inferStringProg "int x; int *y = &x; return &*y;" `shouldBe` Right (TRef TInt)
+            inferStringProg "int x; int *y = &x; int **z = &y; return &*z;" `shouldBe` Right (TRef (TRef TInt))
+            inferStringProg "int x; int *y = &x; int **z = &y; return &**z;" `shouldBe` Right (TRef TInt)
         it "doesn't let you dereference an int" $ do
             inferStringProg "int x; return *x;" `shouldBe` Left (BadDeref TInt)
             inferStringProg "int x; int *y = &x; return **y;" `shouldBe` Left (BadDeref TInt)
+--        it "doesn't allow bad addrOfs"
         it "infers arithmetic binops" $ do
             inferStringExpr "1 + 1" `shouldBe` Right TInt
             inferStringExpr "1 * 1" `shouldBe` Right TInt
@@ -62,4 +67,10 @@ main = hspec $ do
             inferStringProg "int x; int *y = &x; int **z = &y; *z = x;" `shouldBe` Left (Mismatch (TRef TInt) TInt)
         it "handles arithmetic with dereferences" $ do
             inferStringProg "int x; int *y; int **z; return 1 + (*y + x + **z) + *&x;" `shouldBe` Right TInt
+        it "handles arrays" $ do
+            inferStringProg "int[] xs; return xs;" `shouldBe` Right (TArray TInt Nothing)
+            inferStringProg "int[] xs; return xs[0];" `shouldBe` Right TInt
+            inferStringProg "int[] xs = {1,2,3}; return xs[0];" `shouldBe` Right TInt
+            inferStringProg "int x; int *y; int*[] xs = {y,y,&x}; return xs[0];" `shouldBe` Right (TRef TInt)
+            inferStringProg "int x; int *y; int*[] xs = {y,y,&x}; return *xs[0];" `shouldBe` Right TInt
             
