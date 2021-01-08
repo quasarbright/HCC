@@ -109,4 +109,17 @@ main = hspec $ do
         it "knows where array literals belong where they don't" $ do
             wfStringProg "int[] x = {1,2,3};" `shouldBe` []
             wfStringProg "int[] x; x = {1,2,3};" `shouldBe` [WF.UnexpectedArrayLiteral (EArrayLiteral (EInt <$> [1,2,3]))]
-        -- TODO test remaining error types
+        it "detects bad addr of" $ do
+            wfStringExpr "&1" `shouldBe` [WF.BadAddrOf (EInt 1)]
+            let e = EArrayLiteral [EInt 1, EInt 2]
+                in wfStringExpr "&{1,2}" `shouldBe` [WF.BadAddrOf e, WF.UnexpectedArrayLiteral e]
+            wfStringExpr "&(1 + 2)" `shouldBe` [WF.BadAddrOf (EBinop Plus (EInt 1) (EInt 2))]
+            wfStringExpr "&(1 + x)" `shouldBe` [WF.BadAddrOf (EBinop Plus (EInt 1) (EVar "x")), WF.UnboundVar "x"]
+            wfStringExpr "&x" `shouldBe` [WF.UnboundVar "x"]
+            wfStringExpr "&*x" `shouldBe` [WF.UnboundVar "x"]
+            wfStringExpr "&(xs[0])" `shouldBe` [WF.UnboundVar "xs"]
+            wfStringExpr "&*(xs[0])" `shouldBe` [WF.UnboundVar "xs"]
+        it "detects negative index errors" $ do
+            wfStringProg "int[] xs; return xs[-1];" `shouldBe` [WF.NegativeIndex (EGetIndex (EVar "xs") (EUnop Neg (EInt 1)))]
+            wfStringProg "int[] xs; return xs[0];" `shouldBe` []
+            wfStringProg "int[] xs; return xs[0 + (-1)];" `shouldBe` []

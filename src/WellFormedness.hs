@@ -52,7 +52,7 @@ checkExpr = \case
     EUnop Not e -> checkExpr e
     EUnop Inv e -> checkExpr e
     EBinop _ l r -> checkExpr l >> checkExpr r
-    e@(EGetIndex arr (EInt n)) | n < 0 -> checkExpr arr >> throwError (NegativeIndex e)
+    e@(EGetIndex arr (EUnop Neg (EInt n))) | n > 0 -> checkExpr arr >> throwError (NegativeIndex e)
     EGetIndex arr idx -> checkExpr arr >> checkExpr idx
     e@(EArrayLiteral es) -> throwError (UnexpectedArrayLiteral e) >> mapM_ checkExpr es
 
