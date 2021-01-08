@@ -17,7 +17,7 @@ import Data.Functor (($>))
 type Env = Map String Type
 
 data TypeError = Mismatch Type Type
-               | UnboundVar String
+               | TUnboundVar String
                | BadDeref Type
                | InternalError String
                | BadVoid Expr
@@ -27,7 +27,7 @@ data TypeError = Mismatch Type Type
 instance Show TypeError where
     show = \case
         Mismatch e a -> "Type Mismatch: Expected "++show e++", but got "++show a
-        UnboundVar x -> "Unbound variable: "++ x
+        TUnboundVar x -> "Unbound variable: "++ x
         BadDeref t -> "Cannot dereference value of type "++show t
         InternalError s -> "Internal type checking error: "++s
         BadVoid e -> "Value cannot be void: "++show e
@@ -48,7 +48,7 @@ lookupVar x = do
     v <- asks (Map.lookup x)
     case v of
         Just v' -> return v'
-        Nothing -> throwError (UnboundVar x)
+        Nothing -> throwError (TUnboundVar x)
 
 annot :: String -> Type -> Checker a -> Checker a
 annot x t = local (Map.insert x t)
@@ -123,6 +123,7 @@ inferBlock = foldr go (return TVoid)
     where
         go stmt mRest =
             case stmt of
+                -- TODO for if else if() t else void is ok!!!
                 Assign lhs rhs -> do
                     t <- inferLHS lhs
                     checkExpr t rhs

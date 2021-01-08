@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: bb820d41000de8332dc9c8763709869f74d0a8a0a79bb73950d4703679655d0f
+-- hash: 291cd81657705080f82e4080f21db5d88c54c9838b1088d1f43fbcacdcc21a10
 
 name:           HCC
 version:        0.1.0.0
@@ -36,6 +36,7 @@ library
       Text.Megaparsec.Expr
       Type
       Typing
+      WellFormedness
   other-modules:
       Paths_HCC
   hs-source-dirs:

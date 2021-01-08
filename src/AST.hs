@@ -4,6 +4,7 @@ module AST where
 
 import Data.List (intercalate)
 import Type
+import Data.Maybe (isJust)
 
 data Unop = Deref | AddrOf | Neg | Not | Inv deriving(Eq, Ord)
 
@@ -43,6 +44,7 @@ instance Show Expr where
         EGetIndex arr idx -> show arr ++ "["++show idx++"]"
         EArrayLiteral es -> "{"++intercalate ", " (show <$> es)++"}"
 
+-- TODO just use exprs and make assignments expressions
 data LHS = LVar String
          | LDeref LHS
          | LSetIndex Expr Expr
@@ -63,6 +65,9 @@ lhsOfExpr = \case
     EBinop{} -> Nothing
     EGetIndex arr idx -> Just $ LSetIndex arr idx
     EArrayLiteral{} -> Nothing
+
+isLHS :: Expr -> Bool
+isLHS = isJust . lhsOfExpr
 
 exprOfLhs :: LHS -> Expr
 exprOfLhs = \case
