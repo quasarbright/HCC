@@ -168,7 +168,26 @@ compileStatement = \case
             , elsInstrs
             , [ILabel done_label]
             ]
-        
+    While cnd body -> do
+        t <- getTag
+        cndInstrs <- compileExpr cnd
+        bodyInstrs <- compileBlock body
+        let loop_label = "while_"++show t
+            done_label = "endwhile_"++show t
+        return . concat $
+            [ [ILabel loop_label]
+            , cndInstrs
+            , [ IComment "check loop condition"
+              , ICmp (Reg RAX) (Const 0)
+              , IJe done_label
+              ]
+            , bodyInstrs
+            , [ IComment "loop"
+              , IJmp loop_label
+              , ILabel done_label
+              ]
+            ]
+    For setup cnd update body -> compileBlock (whileOfFor setup cnd update body)
        
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]

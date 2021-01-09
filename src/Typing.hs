@@ -151,6 +151,14 @@ inferBlock = foldr go (return TVoid)
                             -- TODO use paramorphism and checkBlock
                             assertEqual tThn =<< mRest
                             return tThn
+                While cnd body -> do
+                    checkExpr TInt cnd
+                    tBody <- inferBlock body
+                    assertEqual tBody =<< mRest -- TODO change after paramorphism
+                    return tBody
+                -- TODO change after paramorphism
+                For setup cnd update body -> inferBlock (whileOfFor setup cnd update body) >> mRest
+                    
 
             
 checkProgram :: Type -> Program -> Checker ()

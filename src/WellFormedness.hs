@@ -73,12 +73,16 @@ checkBlock = foldr go (return ())
             Assign lhs rhs -> checkLHS lhs >> checkExpr rhs >> mRest
             Return e -> checkExpr e >> mRest
             Decl _ x -> checkDup x >> addVar x mRest
-            Def _ x (EArrayLiteral es) -> checkDup x >> mapM_ checkExpr es
+            Def _ x (EArrayLiteral es) -> checkDup x >> mapM_ checkExpr es >> mRest
             Def _ x rhs -> checkDup x >> checkExpr rhs >> addVar x mRest
             If cnd thn mEls -> do
                 checkExpr cnd
                 checkBlock thn
                 maybe (return ()) checkBlock mEls
+                mRest
+            While cnd body -> checkExpr cnd >> checkBlock body >> mRest
+            For setup cnd update body ->
+                checkBlock (whileOfFor setup cnd update body) >> mRest -- var not in scope for rest!
 
 checkProgram :: Program -> Checker ()
 checkProgram (Program block) = checkBlock block

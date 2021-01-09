@@ -91,8 +91,10 @@ main = hspec $ do
             inferStringProg "int[] xs = {};" `shouldBe` Right TVoid
         it "doesn't let then and else have different non-void types" $ do
             inferStringProg "if(1) { return 1; } else { int *y; return y; }" `shouldBe` Left (Mismatch TInt (TRef TInt))
-        it "ensures if condition is an int" $ do
+        it "ensures if/loop condition is an int" $ do
             inferStringProg "int *y; if(y) {}" `shouldBe` Left (Mismatch TInt (TRef TInt))
+            inferStringProg "int *y; while(y) {}" `shouldBe` Left (Mismatch TInt (TRef TInt))
+            inferStringProg "int *y; for(int x;y; x = 1;) {}" `shouldBe` Left (Mismatch TInt (TRef TInt))
         it "allows valid ifs" $ do
             -- TODO remove extra return after you fix statement checking
             inferStringProg "if(1) { return 1; } else { return 2; } return 3;" `shouldBe` Right TInt
@@ -135,3 +137,10 @@ main = hspec $ do
             wfStringProg "int[] xs; return xs[0 + (-1)];" `shouldBe` []
         it "handles ifs" $ do
             wfStringProg "if (x) { int x; return x + y; } else { return x; }" `shouldBe` (WF.UnboundVar <$> ["x","y","x"])
+        it "has proper scoping for loop variables" $ do
+            wfStringProg "for(int x = 0; 1; x = x;) {} return x;" `shouldBe` [WF.UnboundVar "x"]
+        it "detects errors in for parens" $ do
+            wfStringProg "for(int x = x; y; x = z;) {}"  `shouldBe` WF.UnboundVar <$> ["x","y","z"]
+        it "detects errors in loop bodies" $ do
+            wfStringProg "for(int x =1; x; x = 1;) {int a = b; return z;}" `shouldBe` WF.UnboundVar <$> ["b","z"]
+            wfStringProg "while(1) {int a = b; return z;}" `shouldBe` WF.UnboundVar <$> ["b","z"]

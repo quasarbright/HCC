@@ -80,6 +80,8 @@ data Statement = Assign LHS Expr
                | Decl Type String
                | Def Type String Expr
                | If Expr [Statement] (Maybe [Statement])
+               | While Expr [Statement]
+               | For Statement Expr Statement [Statement]
                deriving(Eq)
 
 indent :: String -> String
@@ -96,7 +98,15 @@ instance Show Statement where
                     Nothing -> ""
                     Just els -> " else {\n"++indent (show els)++"\n}"
             in "if ("++show cnd++") {\n"++indent (show thn)++"\n}"++elsStr
+        While cnd body -> "while ("++show cnd++") {\n"++indent (show body)++"\n}"
+        For setup cnd update body ->
+            "for ("++show setup++" "++show cnd++"; "++show update++") {\n"
+            ++ indent (show body)
+            ++ "\n}"
     showList = showString . intercalate "\n" . fmap show
+
+whileOfFor :: Statement -> Expr -> Statement -> [Statement] -> [Statement]
+whileOfFor setup cnd update body = [setup, While cnd (body ++ [update])]
 
 newtype Program = Program [Statement] deriving (Eq)
 
@@ -117,6 +127,8 @@ numSlots stmts = sum (go <$> stmts)
             Decl{} -> 1
             Def{} -> 1
             If _ thn mEls -> numSlots thn + maybe 0 numSlots mEls
+            While _ body -> numSlots body
+            For setup cnd update body -> numSlots (whileOfFor setup cnd update body)
 
 
 

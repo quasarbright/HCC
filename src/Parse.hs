@@ -125,20 +125,36 @@ pDef = do
     pReservedOp ";"
     return (Def t x rhs)
 
+pSingleOrBlock :: Parser [Statement]
+pSingleOrBlock = braces (many pStatement) <|> ((:[]) <$> pStatement)
+
 pIfElse :: Parser Statement
 pIfElse = do
     pKeyword "if"
     cnd <- parens pExpr
-    let go = braces (many pStatement) <|> ((:[]) <$> pStatement)
-    thn <- go
-    mEls <- optional (pKeyword "else" >> go)
+    thn <- pSingleOrBlock
+    mEls <- optional (pKeyword "else" >> pSingleOrBlock)
     return $ If cnd thn mEls
+
+pWhile :: Parser Statement
+pWhile = pKeyword "while" *> (While <$> parens pExpr <*> pSingleOrBlock)
+
+pFor :: Parser Statement
+pFor = do
+    pKeyword "for"
+    symbol "("
+    setup <- pSAtomic
+    cnd <- pExpr
+    symbol ";"
+    update <- pSAtomic
+    symbol ")"
+    For setup cnd update <$> pSingleOrBlock
 
 pSAtomic :: Parser Statement
 pSAtomic = choice [pReturn, try pDecl, try pDef, pAssign] <?> "statement"
 
 pStatement :: Parser Statement
-pStatement = pIfElse <|> pSAtomic
+pStatement = choice [pIfElse, pWhile, pFor, pSAtomic]
 
 pProgram :: Parser Program
 pProgram = Program <$> some pStatement

@@ -1,3 +1,4 @@
+# features
 * [ ] ifs
 * [ ] whiles
     * ~~lift declarations out! otherwise, you'll use O(n) stack slots for the same variable!~~
@@ -10,3 +11,8 @@
     * unreachable statement checking
     * jump to cleanup from anywhere
     * statements get checked, not inferred
+# general
+* guarantee always return
+* block checking, not inferring (+ paramorphism)
+* (asm) comment rest of compiler
+* disallow array assignment
