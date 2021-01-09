@@ -131,7 +131,27 @@ inferBlock = foldr go (return TVoid)
                 Decl t x -> annot x t mRest
                 Def t x rhs -> checkExpr t rhs >> annot x t mRest
                 Return e -> inferExpr e <* mRest -- rest should be empty                
-            
+                If cnd thn Nothing -> do
+                    checkExpr TInt cnd
+                    tThn <- inferBlock thn
+                    case tThn of
+                        TVoid -> mRest
+                        -- TODO use paramorphism and checkBlock
+                        _ -> (assertEqual tThn =<< mRest) >> return tThn
+                If cnd thn (Just els) -> do
+                    checkExpr TInt cnd
+                    tThn <- inferBlock thn
+                    tEls <- inferBlock els
+                    case (tThn, tEls) of
+                        (TVoid,TVoid) -> mRest
+                        (t, TVoid) -> (assertEqual t =<< mRest) >> return t
+                        (TVoid, t) -> (assertEqual t =<< mRest) >> return t
+                        _ -> do
+                            assertEqual tThn tEls
+                            -- TODO use paramorphism and checkBlock
+                            assertEqual tThn =<< mRest
+                            return tThn
+
             
 checkProgram :: Type -> Program -> Checker ()
 checkProgram t (Program b) = checkBlock t b

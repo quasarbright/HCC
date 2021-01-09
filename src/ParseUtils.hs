@@ -33,6 +33,15 @@ lexeme = L.lexeme scn
 symbol :: String -> Parser ()
 symbol = void . L.symbol scn
 
+parens :: Parser a -> Parser a
+parens = between (symbol "(") (symbol ")")
+
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
+
+brackets :: Parser a -> Parser a
+brackets = between (symbol "[") (symbol "]")
+
 pKeyword :: String -> Parser ()
 pKeyword = pKeywordWith scn
 

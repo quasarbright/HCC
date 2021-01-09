@@ -79,7 +79,11 @@ data Statement = Assign LHS Expr
                | Return Expr
                | Decl Type String
                | Def Type String Expr
+               | If Expr [Statement] (Maybe [Statement])
                deriving(Eq)
+
+indent :: String -> String
+indent s = intercalate "\n" (("  "++) <$> lines s)
 
 instance Show Statement where
     show = \case
@@ -87,6 +91,11 @@ instance Show Statement where
         Return e -> "return "++show e++";"
         Decl t x -> show t++" "++x++";"
         Def t x rhs -> show t++" "++x++" = "++show rhs++";"
+        If cnd thn mEls ->
+            let elsStr = case mEls of
+                    Nothing -> ""
+                    Just els -> " else {\n"++indent (show els)++"\n}"
+            in "if ("++show cnd++") {\n"++indent (show thn)++"\n}"++elsStr
     showList = showString . intercalate "\n" . fmap show
 
 newtype Program = Program [Statement] deriving (Eq)
@@ -96,6 +105,7 @@ instance Show Program where
     
 
 -- | how many stack slots need to be allocated for the given list of statements?
+-- (no local scope)
 numSlots :: [Statement] -> Int
 numSlots stmts = sum (go <$> stmts)
     where
@@ -106,5 +116,7 @@ numSlots stmts = sum (go <$> stmts)
             Def (TArray _ (Just n)) _ EArrayLiteral{} -> fromIntegral n + 1
             Decl{} -> 1
             Def{} -> 1
-            
-            
+            If _ thn mEls -> numSlots thn + maybe 0 numSlots mEls
+
+
+

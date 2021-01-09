@@ -14,11 +14,11 @@ import Control.Monad.Except
 import Control.Monad.State.Strict
 import Type
 
--- | maps names to stack indices, next available stack index
-type Env = (Map String Arg, Integer)
+-- | maps names to stack indices, next available stack index, next available tag
+type Env = (Map String Arg, Integer, Integer)
 
 emptyEnv :: Env
-emptyEnv = (Map.empty, 1)
+emptyEnv = (Map.empty, 1, 1)
 
 newtype Compiler a = Compiler { runCompiler :: ExceptT String (State Env) a }
                  deriving( Functor
@@ -30,7 +30,7 @@ newtype Compiler a = Compiler { runCompiler :: ExceptT String (State Env) a }
 
 lookupVar :: String -> Compiler Arg
 lookupVar x = do
-    (m,_) <- get
+    (m,_,_) <- get
     case Map.lookup x m of
         Nothing -> throwError "unbound variable"
         Just arg -> return arg
@@ -38,11 +38,11 @@ lookupVar x = do
 -- | allocate a stack slot for the new variable if we haven't seen it. Otherwise, return its slot
 allocVar :: String -> Compiler Arg
 allocVar x = do
-    (m,nextIndex) <- get
+    (m,nextIndex,nextTag) <- get
     case Map.lookup x m of
         Nothing -> do
             let addr = RegOffset RBP (-nextIndex)
-            put (Map.insert x addr m, succ nextIndex)
+            put (Map.insert x addr m, succ nextIndex, nextTag)
             return addr
         Just arg -> return arg
 
@@ -50,11 +50,17 @@ allocVar x = do
 -- Does not zero out words
 allocArr :: String -> Integer -> Compiler (Arg, Arg)
 allocArr x n = do
-    (m, nextIndex) <- get
+    (m, nextIndex, nextTag) <- get
     let ptrAddr = RegOffset RBP (-nextIndex)
     let firstAddr = RegOffset RBP (-(succ nextIndex))
-    put (Map.insert x ptrAddr m, 1 + n + nextIndex)
+    put (Map.insert x ptrAddr m, 1 + n + nextIndex, nextTag)
     return (ptrAddr, firstAddr)
+
+getTag :: Compiler Integer
+getTag = do
+    (m,i,tag) <- get
+    put (m,i,succ tag)
+    return tag
 
 
 compile :: Program -> Compiler [Instr]
@@ -64,13 +70,16 @@ compile (Program stmts) = do
                 , IMov (Reg RBP) (Reg RSP)
                 , ISub (Reg RSP) (Const (fromIntegral (wordSize * slots)))
                 ]
-    bodyInstrs <- concat <$> mapM compileStatement stmts
+    bodyInstrs <- compileBlock stmts
     let cleanup = [ IAdd (Reg RSP) (Const (fromIntegral (wordSize * slots)))
                   , IMov (Reg RSP) (Reg RBP)
                   , IPop (Reg RBP)
                   , IRet
                   ]
     return $ concat [setup, bodyInstrs, cleanup]
+
+compileBlock :: [Statement] -> Compiler [Instr]
+compileBlock = fmap concat . mapM compileStatement
 
 -- | puts &arr[idx] in rax
 compileGetIndex :: Expr -> Expr -> Compiler [Instr]
@@ -137,6 +146,30 @@ compileStatement = \case
         where n = fromIntegral $ length es
     -- note that int[10] xs = ys; will not allocate stack/copy TODO write test and investigate gcc behavior
     Def _ x rhs -> compileAssignment (LVar x) rhs
+    If cnd thn mEls -> do
+        t <- getTag
+        cndInstrs <- compileExpr cnd
+        thnInstrs <- compileBlock thn
+        elsInstrs <- maybe (return []) compileBlock mEls
+        let else_label = "else_"++show t
+            done_label = "endif_"++show t
+        return . concat $
+            [ [IComment "check if condition"]
+            , cndInstrs
+            , [ IComment "jump to else if false"
+              , ICmp (Reg RAX) (Const 0)
+              , IJe else_label
+              ]
+            , thnInstrs
+            , [ IComment "skip past else"
+              , IJmp done_label
+              , ILabel else_label
+              ]
+            , elsInstrs
+            , [ILabel done_label]
+            ]
+        
+       
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler [Instr]
 simpleBinop instr left right = do

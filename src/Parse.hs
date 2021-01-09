@@ -9,7 +9,7 @@ import Type
 import Data.Functor (($>))
 
 pTAtomic :: Parser Type
-pTAtomic = choice 
+pTAtomic = choice
                [ symbol "int" $> TInt
                , symbol "void" $> TVoid
                ]
@@ -19,7 +19,7 @@ pTRef_ = symbol "*" $> TRef
 
 pTArray_ :: Parser (Type -> Type)
 pTArray_ = do
-    mn <- between (symbol "[") (symbol "]") (optional (lexeme L.decimal))
+    mn <- brackets (optional (lexeme L.decimal))
     return $ \t -> TArray t mn
 
 pTOp :: Parser Type
@@ -56,15 +56,15 @@ postfix  name op = Prefix $ do
     return $ \e -> EUnop op e
 
 pArrayLiteral :: Parser Expr
-pArrayLiteral = EArrayLiteral <$> between (symbol "{") (symbol "}") (pExpr `sepBy` symbol ",")
+pArrayLiteral = EArrayLiteral <$> braces (pExpr `sepBy` symbol ",")
 
 pAtomic :: Parser Expr
-pAtomic = choice [pVar, pNumber, between (symbol "(") (symbol ")") pExpr, pArrayLiteral]
+pAtomic = choice [pVar, pNumber, parens pExpr, pArrayLiteral]
 
 pGetIndex :: Parser Expr
 pGetIndex = do
     e <- pAtomic
-    mIdx <- optional (between (symbol "[") (symbol "]") pExpr)
+    mIdx <- optional (brackets pExpr)
     case mIdx of
         Just idx -> return $ EGetIndex e idx
         Nothing -> return e
@@ -96,7 +96,7 @@ table = [ [binary "*" Times]
         , [binary "+" Plus]
         , [binary "==" Eq]
         , [binary "|" BitOr]
-        ]    
+        ]
 
 pLHS :: Parser LHS
 pLHS = do
@@ -125,8 +125,20 @@ pDef = do
     pReservedOp ";"
     return (Def t x rhs)
 
+pIfElse :: Parser Statement
+pIfElse = do
+    pKeyword "if"
+    cnd <- parens pExpr
+    let go = braces (many pStatement) <|> ((:[]) <$> pStatement)
+    thn <- go
+    mEls <- optional (pKeyword "else" >> go)
+    return $ If cnd thn mEls
+
+pSAtomic :: Parser Statement
+pSAtomic = choice [pReturn, try pDecl, try pDef, pAssign] <?> "statement"
+
 pStatement :: Parser Statement
-pStatement = choice [pReturn, try pDecl, try pDef, pAssign] <?> "statement"
+pStatement = pIfElse <|> pSAtomic
 
 pProgram :: Parser Program
 pProgram = Program <$> some pStatement

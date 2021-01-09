@@ -35,6 +35,10 @@ data Instr = IMov Arg Arg
            | IRet
            | IAnnot Instr String
            | IComment String
+           | ICmp Arg Arg
+           | ILabel String
+           | IJmp String
+           | IJe String
            deriving(Eq, Ord)
 
 
@@ -70,4 +74,8 @@ instance Show Instr where
         IRet -> "    ret"
         IAnnot i c -> show i ++ " ; "++c
         IComment c -> "    ; "++c
+        ICmp l r -> showBinInstr "cmp" l r
+        ILabel name -> name ++ ":"
+        IJmp label -> "    jmp "++label
+        IJe label -> "    je "++label
     showList = showString . intercalate "\n" . fmap show

@@ -75,6 +75,10 @@ checkBlock = foldr go (return ())
             Decl _ x -> checkDup x >> addVar x mRest
             Def _ x (EArrayLiteral es) -> checkDup x >> mapM_ checkExpr es
             Def _ x rhs -> checkDup x >> checkExpr rhs >> addVar x mRest
+            If cnd thn mEls -> do
+                checkExpr cnd
+                checkBlock thn
+                maybe (return ()) checkBlock mEls
 
 checkProgram :: Program -> Checker ()
 checkProgram (Program block) = checkBlock block

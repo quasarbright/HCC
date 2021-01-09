@@ -89,6 +89,16 @@ main = hspec $ do
             inferStringProg "int x; int *y; int*[] xs = {y,y,&x}; return *xs[0];" `shouldBe` Right TInt
         it "checks empty array literals" $ do
             inferStringProg "int[] xs = {};" `shouldBe` Right TVoid
+        it "doesn't let then and else have different non-void types" $ do
+            inferStringProg "if(1) { return 1; } else { int *y; return y; }" `shouldBe` Left (Mismatch TInt (TRef TInt))
+        it "ensures if condition is an int" $ do
+            inferStringProg "int *y; if(y) {}" `shouldBe` Left (Mismatch TInt (TRef TInt))
+        it "allows valid ifs" $ do
+            -- TODO remove extra return after you fix statement checking
+            inferStringProg "if(1) { return 1; } else { return 2; } return 3;" `shouldBe` Right TInt
+        it "detects errors in if branches" $ do
+            inferStringProg "if(1) { return *1; }" `shouldBe` Left (BadDeref TInt)
+            inferStringProg "if(1) {} else { return *1; }" `shouldBe` Left (BadDeref TInt)
     describe "well formedness check" $ do
         it "detects unbound variables" $ do
             wfStringExpr "x" `shouldBe` [WF.UnboundVar "x"]
@@ -123,3 +133,5 @@ main = hspec $ do
             wfStringProg "int[] xs; return xs[-1];" `shouldBe` [WF.NegativeIndex (EGetIndex (EVar "xs") (EUnop Neg (EInt 1)))]
             wfStringProg "int[] xs; return xs[0];" `shouldBe` []
             wfStringProg "int[] xs; return xs[0 + (-1)];" `shouldBe` []
+        it "handles ifs" $ do
+            wfStringProg "if (x) { int x; return x + y; } else { return x; }" `shouldBe` (WF.UnboundVar <$> ["x","y","x"])
