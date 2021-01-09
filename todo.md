@@ -16,3 +16,7 @@
 * block checking, not inferring (+ paramorphism)
 * (asm) comment rest of compiler
 * disallow array assignment
+* add assignment expressions and make
+a for-loop's update be an expression, not a statement
+    * at least make it so you don't need the trailing semicolon!
+* use write monad in compiler!

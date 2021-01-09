@@ -8,5 +8,6 @@ while(n + -i) { // TODO integer comparison
     nprevprev = nprev;
     nprev = tmp;
     i = i + 1;
+    return 1;
 }
 return nprev;
