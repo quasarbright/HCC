@@ -9,10 +9,24 @@
 * [ ] functions
     * path return checking
     * unreachable statement checking
-    * jump to cleanup from anywhere
+    * jump to cleanup label on return
     * statements get checked, not inferred
+    * main function gets called?
+    * no linking with main.c?
+    * include print int function? (can use syscall)
+* [ ] other primitive types, 32-bit ints
+    * tough bc of value sizes
+    * can't just make things 1 word bc strings
+     and signed 32-bit ints will be busted
+    * need to use different register sizes
+    * need to make size specifications on instructions
+    * need to keep track of sizes of types and variables (arrays)
+* [ ] sizeof
+* [ ] casting
+* [ ] structs
 # general
-* guarantee always return
+* implement other operations (-/++-- etc.)
+* guarantee always return, check unreachable statements
 * block checking, not inferring (+ paramorphism)
 * (asm) comment rest of compiler
 * disallow array assignment
