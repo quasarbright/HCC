@@ -24,6 +24,7 @@
 * [ ] sizeof
 * [ ] casting
 * [ ] structs
+* [ ] malloc
 # general
 * implement other operations (-/++-- etc.)
 * guarantee always return, check unreachable statements
