@@ -1,6 +1,6 @@
 # features
-* [ ] ifs
-* [ ] whiles
+* [x] ifs
+* [x] whiles
     * ~~lift declarations out! otherwise, you'll use O(n) stack slots for the same variable!~~
     * no you won't. The body is compiled once, but runs many times.
     The compiler will only allocate one space for it,
@@ -19,4 +19,4 @@
 * add assignment expressions and make
 a for-loop's update be an expression, not a statement
     * at least make it so you don't need the trailing semicolon!
-* use write monad in compiler!
+* [x] use writer monad in compiler!
