@@ -15,12 +15,13 @@ class IntegrationTests(unittest.TestCase):
                 with open(out_path) as out:
                     expected = out.read()
                     actual = result.stdout.decode("utf-8")
-                    self.assertEqual(expected, actual, msg=path)
+                    err = result.stderr.decode("utf-8")
+                    self.assertEqual(expected, actual, msg=path+".c\n"+err)
             if is_err:
                 with open(out_path) as err:
                     expected = err.read()
                     actual = result.stderr.decode("utf-8")
-                    self.assertIn(expected, actual, msg=path)
+                    self.assertIn(expected, actual, msg=path+".c")
         else:
             print("no output file for",path)
 
