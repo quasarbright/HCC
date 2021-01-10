@@ -132,7 +132,7 @@ imap = flip zipWith [0..]
 compileArrayLitDef :: Type -> Integer -> String -> [Expr] -> [Statement] -> Compiler ()
 compileArrayLitDef t n x es rest =
     let decl = Decl (TArray t (Just n)) x
-        assignments = imap (\i e -> Assign (LSetIndex (EVar x) (EInt i)) e) es
+        assignments = imap (Assign . LSetIndex (EVar x) . EInt) es -- xs[i] = {es !! i};
     in compileBlock ((decl:assignments)++rest)
 
 infixl 1 >>++
@@ -231,7 +231,21 @@ compileExpr = \case
     EUnop Inv e -> do
         compileExpr e
         tell [INot (Reg RAX)]
-    EUnop Not _ -> undefined -- TODO labels and jumps
+    EUnop Not e -> do
+        compileExpr e
+        t <- getTag
+        let false_label = "not_false_"++show t
+            done_label = "endnot_"++show t
+        tell
+            [ IComment "not"
+            , ICmp (Reg RAX) (Const 0)
+            , IJe false_label
+            , IMov (Reg RAX) (Const 0)
+            , IJmp done_label
+            , ILabel false_label
+            , IMov (Reg RAX) (Const 1)
+            , ILabel done_label
+            ]
     EUnop Neg e -> do
         compileExpr e
         tell [INeg (Reg RAX)]
@@ -239,7 +253,26 @@ compileExpr = \case
     EBinop Times left right -> simpleBinop IMul left right
     EBinop BitAnd left right -> simpleBinop IAnd left right
     EBinop BitOr left right -> simpleBinop IOr left right
-    EBinop Eq _ _ -> undefined -- TODO labels and jumps
+    EBinop Eq l r -> do
+        compileExpr l
+        tell [IAnnot (IPush (Reg RAX)) "save left side of =="]
+        compileExpr r
+        t <- getTag
+        let eq_label = "eq_"++show t
+            done_label = "endeq_"++show t
+        tell 
+            [ IAnnot (IPop (Reg RCX)) "restore left side of == to rcx"
+            , IComment "comparison for =="
+            , ICmp (Reg RAX) (Reg RCX)
+            , IJe eq_label
+            , IMov (Reg RAX) (Const 0)
+            , IJmp done_label
+            , ILabel eq_label
+            , IMov (Reg RAX) (Const 1)
+            , ILabel done_label
+            ]
+        
+        
     EInt n -> tell [IMov (Reg RAX) (Const n)]
     EGetIndex arr idx -> do
         compileGetIndex arr idx -- &arr[idx]
