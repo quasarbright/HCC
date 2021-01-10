@@ -157,7 +157,7 @@ pStatement :: Parser Statement
 pStatement = choice [pIfElse, pWhile, pFor, pSAtomic]
 
 pProgram :: Parser Program
-pProgram = Program <$> some pStatement
+pProgram = scn *> (Program <$> some pStatement)
 
 left :: (t -> a) -> Either t b -> Either a b
 left f m = case m of
