@@ -110,6 +110,7 @@ main = hspec $ do
             wfStringExpr "x + x + y" `shouldBe` [WF.UnboundVar "x", WF.UnboundVar "x", WF.UnboundVar "y"]
             wfStringProg "int x = y; return 2 + x + y;" `shouldBe` [WF.UnboundVar "y", WF.UnboundVar "y"]
             wfStringProg "int x = x;" `shouldBe` [WF.UnboundVar "x"]
+            wfStringProg "int[] xs = {1,2}; return xs;" `shouldBe` [] -- regression test
         it "detects duplicate variables" $ do
             wfStringProg "int x; int x;" `shouldBe` [WF.DupVar "x"]
             wfStringProg "int x; int x = 1;" `shouldBe` [WF.DupVar "x"]
@@ -144,3 +145,5 @@ main = hspec $ do
         it "detects errors in loop bodies" $ do
             wfStringProg "for(int x =1; x; x = 1;) {int a = b; return z;}" `shouldBe` WF.UnboundVar <$> ["b","z"]
             wfStringProg "while(1) {int a = b; return z;}" `shouldBe` WF.UnboundVar <$> ["b","z"]
+        it "allows shadowing" $ do
+            wfStringProg "int x; if(1) { int x; }" `shouldBe` []

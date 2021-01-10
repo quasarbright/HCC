@@ -59,22 +59,39 @@ checkExpr = \case
 checkLHS :: LHS -> Checker ()
 checkLHS = checkExpr . exprOfLhs
 
-checkDup :: String -> Checker ()
-checkDup x = do
-    b <- varBound x
-    when b $ throwError (DupVar x)
+checkDups :: [Statement] -> Checker ()
+checkDups b = mapM_ throwError errs
+    where
+        -- | only checks this level (doesn't go into ifs)
+        getNewVars = \case
+            Assign{} -> []
+            Return{} -> []
+            Decl _ x -> [x]
+            Def _ x _ -> [x]
+            If{} -> [] -- don't go deep
+            While{} -> []
+            For{} -> []
+        newVars = reverse $ b >>= getNewVars
+        errs = reverse $ go newVars
+        go [] = []
+        go (x:xs)
+            | x `elem` xs = DupVar x:go xs
+            | otherwise = go xs
+
+
 
 -- TODO check all paths return
 -- TODO unreachable statements (need paramorphism)
 checkBlock :: [Statement] -> Checker ()
-checkBlock = foldr go (return ())
+checkBlock b = checkDups b >> foldr go (return ()) b
     where
         go stmt mRest = case stmt of
             Assign lhs rhs -> checkLHS lhs >> checkExpr rhs >> mRest
             Return e -> checkExpr e >> mRest
-            Decl _ x -> checkDup x >> addVar x mRest
-            Def _ x (EArrayLiteral es) -> checkDup x >> mapM_ checkExpr es >> mRest
-            Def _ x rhs -> checkDup x >> checkExpr rhs >> addVar x mRest
+            Decl _ x -> addVar x mRest
+            -- need this special case because array literals are not well formed
+            Def _ x (EArrayLiteral es) -> mapM_ checkExpr es >> addVar x mRest
+            Def _ x rhs -> checkExpr rhs >> addVar x mRest
             If cnd thn mEls -> do
                 checkExpr cnd
                 checkBlock thn
