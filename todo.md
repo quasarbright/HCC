@@ -34,3 +34,4 @@
 a for-loop's update be an expression, not a statement
     * at least make it so you don't need the trailing semicolon!
 * [x] use writer monad in compiler!
+* fix array addressing (they go high to low)
