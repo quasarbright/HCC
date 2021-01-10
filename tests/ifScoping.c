@@ -8,7 +8,7 @@ int x = 7;
 int *y;
 if(1) {
     int z = 11;
-    *y = &z;
+    y = &z;
 }
 int a = 29; // shouldn't trash z's stack slot. should use a new one
 return *y;
