@@ -111,12 +111,14 @@ main = hspec $ do
             wfStringProg "int x = y; return 2 + x + y;" `shouldBe` [WF.UnboundVar "y", WF.UnboundVar "y"]
             wfStringProg "int x = x;" `shouldBe` [WF.UnboundVar "x"]
             wfStringProg "int[] xs = {1,2}; return xs;" `shouldBe` [] -- regression test
+            wfStringProg "x = 1;" `shouldBe` [WF.UnboundVar "x"]
         it "detects duplicate variables" $ do
             wfStringProg "int x; int x;" `shouldBe` [WF.DupVar "x"]
             wfStringProg "int x; int x = 1;" `shouldBe` [WF.DupVar "x"]
             wfStringProg "int x = 1; int x = 1;" `shouldBe` [WF.DupVar "x"]
             wfStringProg "int x = 1; int x;" `shouldBe` [WF.DupVar "x"]
             wfStringProg "int x = 1; int y; int x;" `shouldBe` [WF.DupVar "x"]
+            wfStringProg "int x; int x; int y; int x; int y;" `shouldBe` (WF.DupVar <$> ["x", "x", "y"])
         it "knows assignments don't declare new vars" $ do
             wfStringProg "int x = 1; x = 2;" `shouldBe` []
         it "knows where array literals belong where they don't" $ do
