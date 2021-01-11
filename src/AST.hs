@@ -32,6 +32,7 @@ data Expr = EInt Integer
             | EBinop Binop Expr Expr
             | EGetIndex Expr Expr
             | EArrayLiteral [Expr] -- only valid on rhs of array def
+            | EApp Expr [Expr]
             deriving(Eq, Ord)
 
 -- TODO showsPrec
@@ -43,6 +44,7 @@ instance Show Expr where
         EBinop op left right -> "("++show left++" "++show op++" "++show right++")"
         EGetIndex arr idx -> show arr ++ "["++show idx++"]"
         EArrayLiteral es -> "{"++intercalate ", " (show <$> es)++"}"
+        EApp f args -> show f++"("++intercalate ", " (show <$> args)++")"
 
 -- TODO just use exprs and make assignments expressions
 data LHS = LVar String
@@ -65,6 +67,7 @@ lhsOfExpr = \case
     EBinop{} -> Nothing
     EGetIndex arr idx -> Just $ LSetIndex arr idx
     EArrayLiteral{} -> Nothing
+    EApp{} -> Nothing
 
 isLHS :: Expr -> Bool
 isLHS = isJust . lhsOfExpr
@@ -108,7 +111,21 @@ instance Show Statement where
 whileOfFor :: Statement -> Expr -> Statement -> [Statement] -> [Statement]
 whileOfFor setup cnd update body = [setup, While cnd (body ++ [update])]
 
-newtype Program = Program [Statement] deriving (Eq)
+data TopDecl = FunDecl Type String [(Type, String)]
+             | FunDef Type String [(Type, String)] [Statement]
+             deriving(Eq)
+
+showTargs :: [(Type, String)] -> [Char]
+showTargs targs = "("++intercalate ", " [show t++" "++show x |(t,x) <- targs]++")"
+
+instance Show TopDecl where
+    show = \case
+        FunDecl ret f targs -> show ret++" "++f++showTargs targs++";"
+        FunDef ret f targs body ->
+            show ret++" "++f++showTargs targs++" {\n"++indent (show body)++"\n}"
+    showList = showString . intercalate "\n\n" . fmap show
+
+newtype Program = Program [TopDecl] deriving (Eq)
 
 instance Show Program where
     show (Program stmts) = show stmts

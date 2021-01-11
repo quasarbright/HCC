@@ -69,6 +69,16 @@ pGetIndex = do
         Just idx -> return $ EGetIndex e idx
         Nothing -> return e
 
+pApp :: Parser Expr
+pApp = do
+    -- TODO arbitrary expressions if you do function pointers
+    f <- EVar <$> identifier
+    args <- parens (pExpr `sepBy` symbol ",")
+    return $ EApp f args
+
+pAppGet :: Parser Expr
+pAppGet = try pApp <|> pGetIndex
+
 pUnop_ :: Parser (Expr -> Expr)
 pUnop_ = EUnop <$> choice
     [ symbol "*" $> Deref
@@ -81,7 +91,7 @@ pUnop_ = EUnop <$> choice
 pUnop :: Parser Expr
 pUnop = do
     ops <- many pUnop_
-    e <- pGetIndex
+    e <- pAppGet
     return (foldr ($) e ops)
 
 --pDeref = do
@@ -125,8 +135,11 @@ pDef = do
     pReservedOp ";"
     return (Def t x rhs)
 
+pBlock :: Parser [Statement]
+pBlock = braces (many pStatement)
+
 pSingleOrBlock :: Parser [Statement]
-pSingleOrBlock = braces (many pStatement) <|> ((:[]) <$> pStatement)
+pSingleOrBlock = pBlock <|> ((:[]) <$> pStatement)
 
 pIfElse :: Parser Statement
 pIfElse = do
@@ -156,8 +169,20 @@ pSAtomic = choice [pReturn, try pDecl, try pDef, pAssign] <?> "statement"
 pStatement :: Parser Statement
 pStatement = choice [pIfElse, pWhile, pFor, pSAtomic]
 
+pFunDefOrDecl :: Parser TopDecl
+pFunDefOrDecl = do
+    tRet <- pType
+    f <- identifier
+    targs <- parens (((,) <$> pType <*> identifier) `sepBy` symbol ",")
+    let decl = symbol ";" $> FunDecl tRet f targs
+    let def = FunDef tRet f targs <$> pBlock
+    decl <|> def
+
+pTopDecl :: Parser TopDecl
+pTopDecl = pFunDefOrDecl
+
 pProgram :: Parser Program
-pProgram = scn *> (Program <$> some pStatement)
+pProgram = scn *> (Program <$> some pFunDefOrDecl)
 
 left :: (t -> a) -> Either t b -> Either a b
 left f m = case m of
