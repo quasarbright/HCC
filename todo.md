@@ -14,6 +14,7 @@
     * main function gets called?
     * no linking with main.c?
     * include print int function? (can use syscall)
+    * 16 byte alignment?
 * [ ] other primitive types, 32-bit ints
     * tough bc of value sizes
     * can't just make things 1 word bc strings
@@ -31,8 +32,8 @@
 * block checking, not inferring (+ paramorphism)
 * (asm) comment rest of compiler
 * disallow array assignment
-* add assignment expressions and make
-a for-loop's update be an expression, not a statement
-    * at least make it so you don't need the trailing semicolon!
+* add assignment expressions and expression statements
+* make it so you don't need the trailing semicolon in a for loop's parens
 * [x] use writer monad in compiler!
 * fix array addressing (they go high to low)
+* blank return for exiting void methods
