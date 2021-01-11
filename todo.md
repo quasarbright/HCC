@@ -7,10 +7,10 @@
     just like a variable in an if.
     Only thing is it'll get zeroed out every loop.
 * [ ] functions
-    * path return checking
-    * unreachable statement checking
+    * [x] path return checking
+    * [x] unreachable statement checking
     * jump to cleanup label on return
-    * statements get checked, not inferred
+    * [x] statements get checked, not inferred
     * main function gets called?
     * no linking with main.c?
     * include print int function? (can use syscall)
@@ -28,12 +28,12 @@
 * [ ] malloc
 # general
 * implement other operations (-/++-- etc.)
-* guarantee always return, check unreachable statements
+* [x] guarantee always return, check unreachable statements
 * block checking, not inferring (+ paramorphism)
 * (asm) comment rest of compiler
 * disallow array assignment
 * add assignment expressions and expression statements
 * make it so you don't need the trailing semicolon in a for loop's parens
 * [x] use writer monad in compiler!
-* fix array addressing (they go high to low)
+* fix array addressing (they go high to low rn)
 * blank return for exiting void methods
