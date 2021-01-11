@@ -135,10 +135,6 @@ compileArrayLitDef t n x es rest =
         assignments = imap (Assign . LSetIndex (EVar x) . EInt) es -- xs[i] = {es !! i};
     in compileBlock ((decl:assignments)++rest)
 
-infixl 1 >>++
-(>>++) :: Applicative f => f [a] -> f [a] -> f [a]
-m1 >>++ m2 = (++) <$> m1 <*> m2
-
 -- | Compile a block of statements.
 -- Can be used for function body or if/loop body
 compileBlock :: [Statement] -> Compiler ()
@@ -164,7 +160,6 @@ compileBlock (stmt:rest) =
             where n' = max n (fromIntegral $ length es)
         Def t@(TArray _ Nothing) x (EArrayLiteral es) -> compileArrayLitDef t n x es rest
             where n = fromIntegral $ length es
-        -- note that int[10] xs = ys; will not allocate stack/copy TODO write test and investigate gcc behavior
         Def _ x rhs -> do
             addr <- allocVar
             withVar x addr (compileAssignment (LVar x) rhs >> mRest)
