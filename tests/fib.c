@@ -1,3 +1,4 @@
+int main(){
 int n = 5;
 int i = 2;
 int nprev = 1;
@@ -8,6 +9,5 @@ while(!(n == i)) { // TODO integer comparison
     nprevprev = nprev;
     nprev = tmp;
     i = i + 1;
-    return 1;
 }
-return nprev;
+return nprev;}

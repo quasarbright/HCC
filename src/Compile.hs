@@ -133,11 +133,11 @@ imap = flip zipWith [0..]
 
 -- | int[] xs = {1,2,3}; -> int[3] xs; xs[0] = 1; xs[1] = 2; xs[2] = 3;
 -- puts &xs[0] in RAX
-compileArrayLitDef :: Type -> Integer -> String -> [Expr] -> [Statement] -> Compiler ()
-compileArrayLitDef t n x es rest =
+desugarArrayLitDef :: Type -> Integer -> String -> [Expr] -> [Statement]
+desugarArrayLitDef t n x es =
     let decl = Decl (TArray t (Just n)) x
         assignments = imap (Assign . LSetIndex (EVar x) . EInt) es -- xs[i] = {es !! i};
-    in compileBlock "javascript" ((decl:assignments)++rest)
+    in (decl:assignments)
 
 -- | Compile a block of statements.
 -- Can be used for function body or if/loop body
@@ -161,9 +161,9 @@ compileBlock retLabel (stmt:rest) =
         Decl _ x -> do
             addr <- allocVar
             withVar x addr (compileAssignment (LVar x) (EInt 0) >> mRest)
-        Def t@(TArray _ (Just n)) x (EArrayLiteral es) -> compileArrayLitDef t n' x es rest
+        Def t@(TArray _ (Just n)) x (EArrayLiteral es) -> recurse (desugarArrayLitDef t n' x es++rest)
             where n' = max n (fromIntegral $ length es)
-        Def t@(TArray _ Nothing) x (EArrayLiteral es) -> compileArrayLitDef t n x es rest
+        Def t@(TArray _ Nothing) x (EArrayLiteral es) -> recurse (desugarArrayLitDef t n x es++rest)
             where n = fromIntegral $ length es
         Def _ x rhs -> do
             addr <- allocVar
