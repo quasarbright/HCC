@@ -14,11 +14,31 @@ Conventions:
 The answer goes in RAX
 RCX is used when you need two registers at once, like binary operations
 -}
-data Reg = RAX | RBP | RSP | RCX | RDX deriving(Eq, Ord, Show)
+data Reg = RAX
+         | RBP
+         | RSP
+         | RCX
+         | RDX
+         | RBX
+         | RSI
+         | RDI
+         | R8
+         | R9
+         | R10
+         | R11
+         | R12
+         | R13
+         | R14
+         | R15
+         deriving(Eq, Ord, Show)
+
+argRegisters :: [Reg]
+argRegisters = [RDI,RSI,RDX,RCX,R8,R9]
 
 data Arg = Const Integer
          | Reg Reg
          | RegOffset Reg Integer -- offset is in words
+         | ALabel String
          deriving(Eq, Ord)
 
 data Instr = IMov Arg Arg
@@ -38,6 +58,7 @@ data Instr = IMov Arg Arg
            | ICmp Arg Arg
            | ILabel String
            | IJmp String
+           | ICall String
            | IJe String
            deriving(Eq, Ord)
 
@@ -50,6 +71,7 @@ instance Show Arg where
             | n > 0 -> "["++show r++" + "++show (n * wordSize)++"]"
             | n < 0 -> "["++show r++" - "++show (-n * wordSize)++"]"
             | otherwise -> "["++show r++"]"
+        ALabel s -> s
 
 showBinInstr :: (Show a1, Show a2) => [Char] -> a1 -> a2 -> [Char]
 showBinInstr name l r = "    "++name++" "++show l++", "++show r
@@ -60,6 +82,7 @@ showUnInstr name arg = "    "++name++" "++show arg
 instance Show Instr where
     show = \case
         IMov dest@RegOffset{} source@Const{} -> showBinInstr "mov qword" dest source
+--        IMov dest@RegOffset{} source@ALabel{} -> showBinInstr "mov dword" dest source
         IMov dest source -> showBinInstr "mov" dest source
         ILea dest source -> showBinInstr "lea" dest source
         IAdd dest rhs -> showBinInstr "add" dest rhs
@@ -77,5 +100,6 @@ instance Show Instr where
         ICmp l r -> showBinInstr "cmp" l r
         ILabel name -> name ++ ":"
         IJmp label -> "    jmp "++label
+        ICall label -> "    call "++label
         IJe label -> "    je "++label
     showList = showString . intercalate "\n" . fmap show

@@ -14,12 +14,15 @@ swallow :: Show a => Either a b -> b
 swallow (Left err) = errorWithoutStackTrace (show err)
 swallow (Right x) = x
 
-main :: IO ()
-main = do
-    (fname:_) <- getArgs
-    source <- readFile fname
+go fname = do
+    source <-  readFile fname
     let prog = swallowS $ parseProgram fname source
     let progWF = swallow (prog <$ WF.checkWellformedness prog)
     let progTY = swallow (prog <$ typeCheckProgram progWF)
     let asm = swallow $ compileStr progTY
     putStrLn asm
+
+main :: IO ()
+main = do
+    (fname:_) <- getArgs
+    go fname

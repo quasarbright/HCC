@@ -13,6 +13,7 @@ import qualified Data.Map as Map
 import Control.Monad.Except
 import Control.Monad.RWS.Strict
 import Type
+import Data.Function ((&))
 
 -- | maps names to stack indices
 type Env = Map String Arg
@@ -35,6 +36,11 @@ newtype Compiler a = Compiler { runCompiler :: ExceptT String (RWS Env [Instr] S
                          , MonadWriter [Instr]
                          , MonadError String
                          )
+
+-- utility --
+
+nothing :: Monad m => m ()
+nothing = return ()
 
 lookupVar :: String -> Compiler Arg
 lookupVar x = do
@@ -71,28 +77,26 @@ allocArr n = do
     put (1 + n + nextIndex, nextTag)
     return (ptrAddr, firstAddr)
 
+modifyStackIndex :: (Integer -> Integer) -> Compiler ()
+modifyStackIndex f = do
+    (nextIndex, nextTag) <- get
+    put (f nextIndex, nextTag)
+
 getTag :: Compiler Integer
 getTag = do
     (i,tag) <- get
     put (i,succ tag)
     return tag
 
-compile :: Program -> Compiler ()
-compile (Program stmts) = do
-    let slots = numSlots stmts + 1
-    tell [ IPush (Reg RBP)
-                , IMov (Reg RBP) (Reg RSP)
-                , ISub (Reg RSP) (Const (fromIntegral (wordSize * slots)))
-                ]
-    compileBlock stmts
-    tell [ IAdd (Reg RSP) (Const (fromIntegral (wordSize * slots)))
-                  , IMov (Reg RSP) (Reg RBP)
-                  , IPop (Reg RBP)
-                  , IRet
-                  ]
+-- compilation --
 
---compileBlock :: [Statement] -> Compiler [Instr]
---compileBlock = fmap concat . mapM compileStatement
+{-
+Invariants:
+- RSP is at the same place before and after compiling a statement/expression (every push has a pop)
+- the nextStackIndex of the state points to the next stack index available for a variable to be placed in
+- tags (for label generation) are unique (increment the nextTag when you generate one)
+- the environment represents variables that are currently in scope for the code being compiled
+-}
 
 -- | puts &arr[idx] in rax
 compileGetIndex :: Expr -> Expr -> Compiler ()
@@ -133,17 +137,18 @@ compileArrayLitDef :: Type -> Integer -> String -> [Expr] -> [Statement] -> Comp
 compileArrayLitDef t n x es rest =
     let decl = Decl (TArray t (Just n)) x
         assignments = imap (Assign . LSetIndex (EVar x) . EInt) es -- xs[i] = {es !! i};
-    in compileBlock ((decl:assignments)++rest)
+    in compileBlock "javascript" ((decl:assignments)++rest)
 
 -- | Compile a block of statements.
 -- Can be used for function body or if/loop body
-compileBlock :: [Statement] -> Compiler ()
-compileBlock [] = return ()
-compileBlock (stmt:rest) =
-    let mRest = compileBlock rest in
+compileBlock :: String -> [Statement] -> Compiler ()
+compileBlock _ [] = return ()
+compileBlock retLabel (stmt:rest) =
+    let recurse = compileBlock retLabel
+        mRest = recurse rest in
     case stmt of
         Assign lhs rhs -> compileAssignment lhs rhs >> mRest
-        Return e -> compileExpr e >> mRest -- TODO when you have functions, jump to the cleanup label here!
+        Return e -> compileExpr e >> tell [IJmp retLabel]
         Decl (TArray _ (Just n)) x -> do
             (ptrAddr, firstAddr) <- allocArr n
             let bindInstrs = [ILea (Reg RCX) firstAddr, IMov ptrAddr (Reg RCX)] -- store the address of the beginning of the array
@@ -173,12 +178,12 @@ compileBlock (stmt:rest) =
                  , ICmp (Reg RAX) (Const 0)
                  , IJe else_label
                  ]
-            compileBlock thn
+            recurse thn
             tell [ IComment "skip past else"
                  , IJmp done_label
                  , ILabel else_label
                  ]
-            maybe (return ()) compileBlock mEls
+            maybe (return ()) recurse mEls
             tell [ILabel done_label]
             mRest
         While cnd body -> do
@@ -191,14 +196,14 @@ compileBlock (stmt:rest) =
                  , ICmp (Reg RAX) (Const 0)
                  , IJe done_label
                  ]
-            compileBlock body
+            recurse body
             tell [ IComment "loop"
                  , IJmp loop_label
                  , ILabel done_label
                  ]
             mRest
-        For setup cnd update body -> compileBlock (whileOfFor setup cnd update body) >> mRest
-       
+        For setup cnd update body -> recurse (whileOfFor setup cnd update body) >> mRest
+
 
 simpleBinop :: (Arg -> Arg -> Instr) -> Expr -> Expr -> Compiler ()
 simpleBinop instr left right = do
@@ -206,6 +211,15 @@ simpleBinop instr left right = do
         tell [IPush (Reg RAX)]
         compileExpr right
         tell [IPop (Reg RCX), instr (Reg RCX) (Reg RAX), IMov (Reg RAX) (Reg RCX)]
+
+loadArgsForCall :: [Expr] -> Compiler ()
+loadArgsForCall args
+    | length args <= 6 =
+        let go e reg = compileExpr e >> tell [IMov (Reg reg) (Reg RAX)]
+        in zipWithM_ go args argRegisters
+    | otherwise =
+        let go e = compileExpr e >> tell [IPush (Reg RAX)]
+        in loadArgsForCall (take 6 args) >> mapM_ go (args & drop 6 & reverse)
 
 compileExpr :: Expr -> Compiler ()
 compileExpr = \case
@@ -255,7 +269,7 @@ compileExpr = \case
         t <- getTag
         let eq_label = "eq_"++show t
             done_label = "endeq_"++show t
-        tell 
+        tell
             [ IAnnot (IPop (Reg RCX)) "restore left side of == to rcx"
             , IComment "comparison for =="
             , ICmp (Reg RAX) (Reg RCX)
@@ -266,19 +280,97 @@ compileExpr = \case
             , IMov (Reg RAX) (Const 1)
             , ILabel done_label
             ]
-        
-        
     EInt n -> tell [IMov (Reg RAX) (Const n)]
     EGetIndex arr idx -> do
         compileGetIndex arr idx -- &arr[idx]
         tell [IMov (Reg RAX) (RegOffset RAX 0)] -- *&arr[idx]
     EArrayLiteral{} -> throwError "unexpected array literal"
+    EApp (EVar f) args -> do
+        loadArgsForCall args
+        tell [ICall (callLabel f)]
 
+        when (length args > length argRegisters)
+            (tell [IAdd (Reg RSP) (Const (fromIntegral $ wordSize * (length args - length argRegisters)))])
+    EApp{} -> throwError "can't compile non-var calls"
+
+
+-- variable mangling --
+{-
+- compiler labels are not underscored
+- need to escape user stuff to remove ambiguity
+- encoding assumes no shadowing of functions+globals (same namespace)
+- must add something unused in compiler labels (like _) to beginning and something unique at the end
+    to avoid possible ambiguity.
+    - There must not be common suffixes in the encoding
+-}
+varToLabel :: [Char] -> [Char]
+varToLabel f = "_"++f
+
+callLabel :: [Char] -> [Char]
+callLabel f = varToLabel f ++ "_call"
+
+cleanupLabel :: [Char] -> [Char]
+cleanupLabel f = varToLabel f ++ "_cleanup"
+
+constLabel :: [Char] -> [Char]
+constLabel x = varToLabel x ++ "_const"
+
+-- | loads arguments into stack like locals (doesn't bind variables)
+loadArgs :: Int -> Compiler ()
+loadArgs n = tell . concat $ imap go (take n locs)
+    where locs = fmap Reg argRegisters ++ [RegOffset RBP i | i <- [2..]]
+          go i (Reg r) = [IMov (RegOffset RBP (-(i+1))) (Reg r)]
+          go i arg = [IMov (Reg R10) arg, IMov (RegOffset RBP (-(i+1))) (Reg R10)]
+
+compileDecls :: [TopDecl] -> Compiler ()
+compileDecls [] = nothing
+compileDecls (decl:rest) = let mRest = compileDecls rest in case decl of
+    FunDecl{} -> mRest
+    FunDef _ f targs body ->
+        let arity = length targs
+            slots = arity + numSlots body
+        in do
+            when (f == "main") (tell [ILabel "_main"])
+            tell
+                [ IComment $ "function "++f
+                , ILabel (callLabel f)
+                , IComment "setup"
+                , IPush (Reg RBP)
+                , IMov (Reg RBP) (Reg RSP)
+                , ISub (Reg RSP) (Const (fromIntegral (wordSize * slots)))
+                , IComment "load arguments from registers/stack"
+                ]
+            loadArgs arity
+--            tell [IMov (RegOffset RBP (-(fromIntegral arity + 1))) (ALabel (callLabel f))]
+            let vars = fmap snd targs
+                locs = [RegOffset RBP (-i) | i <- [1..]]
+                annots = zip vars locs
+            modifyStackIndex (const (toInteger (succ arity)))
+            tell [IComment "function body"]
+            withVars annots $ compileBlock (cleanupLabel f) body
+            tell
+                [ IComment "cleanup"
+                , ILabel (cleanupLabel f)
+                , IAdd (Reg RSP) (Const (fromIntegral (wordSize * slots)))
+                , IMov (Reg RSP) (Reg RBP)
+                , IPop (Reg RBP)
+                , IRet
+                ]
+            mRest
+
+compile :: Program -> Compiler ()
+compile (Program decls) = compileDecls decls
 
 executeCompiler :: Compiler a -> Either String [Instr]
 executeCompiler m = case evalRWS (runExceptT (runCompiler m)) emptyEnv emptyStore of
     (Left err,_) -> Left err
     (Right{},instrs) -> Right instrs
+
+hasMain :: Program -> Bool
+hasMain (Program decls) = any go decls
+    where go FunDecl{} = False
+          go (FunDef _ "main" _ _) = True
+          go FunDef{} = False
 
 compileStr :: Program -> Either String String
 compileStr p =
@@ -290,5 +382,6 @@ compileStr p =
                 [ "section .text"
                 , "global our_code_starts_here"
                 , "our_code_starts_here:"
+                , if hasMain p then "    jmp "++callLabel "main" else "    mov rax, 0 ; no main\n    ret"
                 , pStr
                 ]

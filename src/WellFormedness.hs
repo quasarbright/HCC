@@ -29,7 +29,7 @@ type Checker a = (RWS Env [WFError] () a)
 -- utility
 
 nothing :: Monad m => m ()
-nothing = nothing
+nothing = return ()
 
 varBound :: String -> Checker Bool
 varBound x = asks (x `elem`)
@@ -151,8 +151,8 @@ checkTopDecls decls = checkDups (getDeclVars decls) >> checkDups (getDefVars dec
         getDeclVars (FunDef{}:ds) = getDeclVars ds
         getDeclVars (FunDecl _ f _:ds) = f:getDeclVars ds
         getDefVars [] = []
-        getDefVars (FunDecl{}:ds) = getDeclVars ds
-        getDefVars (FunDef _ f _ _:ds) = f:getDeclVars ds
+        getDefVars (FunDecl{}:ds) = getDefVars ds
+        getDefVars (FunDef _ f _ _:ds) = f:getDefVars ds
         go decl mRest = case decl of
             FunDecl _ f targs -> mapM_ go' targs >> addVar f mRest
                 where go' = \case

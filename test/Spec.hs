@@ -149,3 +149,8 @@ main = hspec $ do
             wfStringProg "while(1) {int a = b; return z;}" `shouldBe` WF.UnboundVar <$> ["b","z"]
         it "allows shadowing" $ do
             wfStringProg "int x; if(1) { int x; }" `shouldBe` []
+{-
+TODO test int f(int f) scope precedence
+TODO test int f(int x, int x); 
+TODO test dup fun def, dup fun decl, int f(); int f(){}  
+-}

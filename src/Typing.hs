@@ -184,8 +184,8 @@ checkDecls (decl:rest) =
     let mRest = checkDecls rest
         mDecl = checkDecl decl
     in mDecl >> case decl of
-        FunDecl ret f _ -> annot f ret mRest
-        FunDef ret f _ _ -> annot f ret mRest
+        FunDecl ret f targs -> annot f (TFun ret (fmap fst targs)) mRest
+        FunDef ret f targs _ -> annot f (TFun ret (fmap fst targs)) mRest
             
 checkProgram :: Program -> Checker ()
 checkProgram (Program decls) = checkDecls decls

@@ -37,3 +37,4 @@
 * [x] use writer monad in compiler!
 * fix array addressing (they go high to low rn)
 * blank return for exiting void methods
+* check for fun decl with no def
