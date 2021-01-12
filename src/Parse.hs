@@ -189,9 +189,16 @@ left f m = case m of
     Left l -> Left (f l)
     Right r -> Right r
 
+
+makeParseFn :: Parser a -> String -> String -> Either String a
+makeParseFn p name src = left errorBundlePretty $ runParser p name src
+
+parseBlock :: String -> String -> Either String [Statement]
+parseBlock = makeParseFn pBlock
+
 -- | name then contents
 parseProgram :: String -> String -> Either String Program
-parseProgram name src = left errorBundlePretty $ runParser pProgram name src
+parseProgram = makeParseFn pProgram
 
 parseExpr :: String -> String -> Either String Expr
-parseExpr name src = left errorBundlePretty $ runParser pExpr name src
+parseExpr = makeParseFn pExpr
