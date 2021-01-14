@@ -64,7 +64,7 @@ withVar x addr = local (Map.insert x addr)
 
 -- | run the compiler with given variables in scope (adds them)
 withVars :: [(String, Arg)] -> Compiler a -> Compiler a
-withVars vars m = foldr (uncurry withVar) m vars
+withVars vars = local $ \m -> foldr (uncurry Map.insert) m vars
 
 -- | allocate an array of a given length and return the array pointer and the address of the first value.
 -- Does not zero out words.

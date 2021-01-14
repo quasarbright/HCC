@@ -163,6 +163,7 @@ checkTopDecls decls = checkDups (getDeclVars decls) >> checkDups (getDefVars dec
                         (TFun{},_) -> nothing
             FunDef ret f targs body -> do
                 go (FunDecl ret f targs) nothing
+                checkDups (fmap snd targs)
                 case ret of
                     TVoid | mayReturn body -> throwError (VoidReturn f)
                           | otherwise -> nothing

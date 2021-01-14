@@ -119,6 +119,16 @@ main = hspec $ do
         it "detects errors in if branches" $ do
             typeStringBlock "if(1) { return *1; }" `shouldBe` Just (BadDeref TInt)
             typeStringBlock "if(1) {} else { return *1; }" `shouldBe` Just (BadDeref TInt)
+        it "detects wrong return type" $ do
+            typeStringProg "int f() { int *x; return x; }" `shouldBe` Just (Mismatch TInt (TRef TInt))
+            typeStringProg "int f(int x) { return &x; }" `shouldBe` Just (Mismatch TInt (TRef TInt))
+            typeStringProg "void f() { return 1; }" `shouldBe` Just (Mismatch TVoid TInt)
+        it "handles function calls" $ do
+            typeStringProg "int f() { return 1; } int main() { int x = f(); return x; }" `shouldBe` Nothing
+            typeStringProg "int f(int x, int *y) { return x + *y; } int main() { int a; int x = f(a,&a); return x; }" `shouldBe` Nothing
+        it "handles argname same as funname" $ do
+            typeStringProg "int f(int f) { return f; }" `shouldBe` Nothing
+            typeStringProg "int f(int f) { return f(1); }" `shouldBe` Just (AppliedNonFunction TInt)
     describe "well formedness check" $ do
         it "detects unbound variables" $ do
             wfStringExpr "x" `shouldBe` [WF.UnboundVar "x"]
@@ -167,6 +177,13 @@ main = hspec $ do
             wfStringBlock "while(1) {int a = b; return z;} return 1;" `shouldBe` WF.UnboundVar <$> ["b","z"]
         it "allows shadowing" $ do
             wfStringBlock "int x; if(1) { int x; } return 1;" `shouldBe` []
+        it "allows arg name and funname to be the same" $ do
+            wfStringProg "int f(int f) { return f; }" `shouldBe` []
+        it "catches function dup vars" $ do
+            wfStringProg "int f(int x, int x) { return x; }" `shouldBe` [WF.DupVar "x"]
+            wfStringProg "int f(); int f() { return 1; }" `shouldBe` []
+            wfStringProg "int f() { return 1; } int f() { return 1; }" `shouldBe` [WF.DupVar "f"]
+        
 
 {-
 TODO test int f(int f) scope precedence

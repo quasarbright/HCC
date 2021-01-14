@@ -61,7 +61,7 @@ annot :: String -> Type -> Checker a -> Checker a
 annot x t = local (Map.insert x t)
 
 annots :: [(String, Type)] -> Checker a -> Checker a
-annots = flip $ foldr (uncurry annot)
+annots annotations = local $ \m -> foldr (uncurry Map.insert) m annotations
 
 assertEqual :: Type -> Type -> Checker ()
 assertEqual expected actual

@@ -105,6 +105,7 @@ table :: [[Operator Parser Expr]]
 table = [ [binary "*" Times]
         , [binary "+" Plus]
         , [binary "==" Eq]
+        , [binary "&" BitAnd]
         , [binary "|" BitOr]
         ]
 
@@ -182,7 +183,7 @@ pTopDecl :: Parser TopDecl
 pTopDecl = pFunDefOrDecl
 
 pProgram :: Parser Program
-pProgram = scn *> (Program <$> some pFunDefOrDecl)
+pProgram = Program <$> some pFunDefOrDecl
 
 left :: (t -> a) -> Either t b -> Either a b
 left f m = case m of
@@ -191,7 +192,7 @@ left f m = case m of
 
 
 makeParseFn :: Parser a -> String -> String -> Either String a
-makeParseFn p name src = left errorBundlePretty $ runParser p name src
+makeParseFn p name src = left errorBundlePretty $ runParser (scn *> p <* eof) name src
 
 parseBlock :: String -> String -> Either String [Statement]
 parseBlock = makeParseFn pBlock
